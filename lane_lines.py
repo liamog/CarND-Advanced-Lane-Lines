@@ -199,6 +199,14 @@ class LaneLines():
              (self._grad_y_binary == 1)) |
             ((self._grad_mag_binary == 1) &
              (self._grad_dir_binary == 1))] = 1
+        # Smooth the lines by merging the last n frames
+        self._images.append(self.binary_warped)
+        if len(self._images) > 5:
+            del self._images[0]
+
+        # merge image with previous images.
+        for img in self._images:
+            self.binary_warped += img
 
     def process_image(self, img):
         """Process image and return image with Lane Line drawn."""
@@ -338,17 +346,18 @@ class LaneLines():
             color_warp, self._perspective_inverse, (self.img_size))
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 2
+        font_scale = 1.5
         font_color = (0, 255, 0)
         line_type = 3
 
         left_text_pos = (20, 100)
         if (self.left_lane_line.radius_of_curvature > 10000):
-            left_text = 'Left Curvature=Straight'
+            left_text = 'Left CurRad=Straight'
         else:
-            left_text = 'Left Curvature={:3.4f}'.format(
+            left_text = 'Left CurRad={:3.4f}'.format(
                 self.left_lane_line.radius_of_curvature)
-
+        left_text += ': lane_dist={:3.4f}'.format(
+            self.left_lane_line.line_base_pos)
         cv2.putText(lane_poly,
                     left_text,
                     left_text_pos,
@@ -360,14 +369,35 @@ class LaneLines():
         right_text_pos = (20, 160)
         # If greater than 10000m (10k) assume straight
         if (self.right_lane_line.radius_of_curvature > 10000):
-            right_text = 'Right Curvature=Straight'
+            right_text = 'Right CurRad=Straight'
         else:
-            right_text = 'Right Curvature={:3.4f}'.format(
+            right_text = 'Right CurRad={:3.4f}'.format(
                 self.right_lane_line.radius_of_curvature)
+        right_text += (': lane_dist={:3.4f}'.format(
+            self.right_lane_line.line_base_pos))
 
         cv2.putText(lane_poly,
                     right_text,
                     right_text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
+        signed_dist_from_center = self.right_lane_line.line_base_pos + \
+            self.left_lane_line.line_base_pos
+        if (signed_dist_from_center > 0):
+            side = "Right"
+        else:
+            side = "Left"
+
+        center_text = 'Car is {:3.4f}m to {} from lane center'.format(
+            signed_dist_from_center, side)
+        center_text_pos = (20, 220)
+
+        cv2.putText(lane_poly,
+                    center_text,
+                    center_text_pos,
                     font,
                     font_scale,
                     font_color,
@@ -380,7 +410,7 @@ class LaneLines():
         """Constructor."""
         # Set to the image currently being processed
         self._img = None
-
+        self._images = []
         # perspective transform matrix
         self._perspective_transform = None
 

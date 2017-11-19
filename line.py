@@ -42,13 +42,20 @@ class Line():
     def _calculate_curvature(self):
         ym_per_pix = 30 / 720  # meters per pixel in y dimension
         xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
-        fitx, fity = self.get_best_fitted_for_shape((100, 100))
 
+        fitx, fity = self.get_best_fitted_for_shape((650, 1280))
         fit_cr = np.polyfit(fity * ym_per_pix, fitx * xm_per_pix, 2)
 
+        car_center = (1280 / 2) * xm_per_pix
+
         y_eval = np.max(fity)
+        # fit for max y
+        x_eval = fitx[649] * xm_per_pix
+        self.line_base_pos = car_center - x_eval
+
         self.radius_of_curvature = (
-            (1 + (2 * fit_cr[0] * y_eval + fit_cr[1])**2)**1.5) / np.absolute(2 * fit_cr[0])
+            (1 + (2 * fit_cr[0] * y_eval + fit_cr[1])**2)**1.5) / \
+            np.absolute(2 * fit_cr[0])
 
     def fit_line_from_current(self, nonzerox, nonzeroy, margin):
         """
