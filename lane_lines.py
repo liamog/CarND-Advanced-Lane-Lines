@@ -3,9 +3,10 @@ import numpy as np
 import cv2
 import matplotlib.image as mpimg
 import glob
-from line import Line
 import pickle
 import os.path
+
+from line import Line
 
 
 class LaneLines():
@@ -220,7 +221,9 @@ class LaneLines():
 
         if (not self.right_lane_line.detected or
                 not self.left_lane_line.detected):
-            self.file_line()
+            return self._find_line_full_search()
+        else:
+            return self._find_lines_from_best_fit()
 
     def _find_line_full_search(self):
         # Find the peak of the left and right halves of the histogram
@@ -296,46 +299,82 @@ class LaneLines():
         # Extract left and right line pixel positions
         leftx = nonzerox[left_lane_inds]
         lefty = nonzeroy[left_lane_inds]
+        self.left_lane_line.fit_line(leftx, lefty)
+
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
+        self.right_lane_line.fit_line(rightx, righty)
+        return self._visualize_lanes()
 
-        # Fit a second order polynomial to each
-        if len(rightx) == 0:
-            self.right_lane_line.detected = False
-        if len(leftx) == 0:
-            return self.source_img
+    def _find_lines_from_best_fit(self):
+        nonzero = self.binary_warped.nonzero()
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        margin = 100
+        self.left_lane_line.fit_line_from_current(nonzerox, nonzeroy, margin)
+        self.right_lane_line.fit_line_from_current(nonzerox, nonzeroy, margin)
+        return self._visualize_lanes()
 
-        self.left_lane_line.current_fit = np.polyfit(lefty, leftx, 2)
-        self.right_lane_line.current_fit = np.polyfit(righty, rightx, 2)
+    def _visualize_lanes(self):
+        """Visualize the lane as an overlay image fill between the lines."""
+        self.lane_find_visualization[self.left_lane_line.ally,
+                                     self.left_lane_line.allx] = [255, 0, 0]
+        self.lane_find_visualization[self.right_lane_line.ally,
+                                     self.right_lane_line.allx] = [0, 0, 255]
+
+        # visualize the curve.
         self.left_lane_line.visualize_lane_current_fit(
             self.lane_find_visualization)
         self.right_lane_line.visualize_lane_current_fit(
             self.lane_find_visualization)
-        self.lane_find_visualization[nonzeroy[left_lane_inds],
-                                     nonzerox[left_lane_inds]] = [255, 0, 0]
-        self.lane_find_visualization[nonzeroy[right_lane_inds],
-                                     nonzerox[right_lane_inds]] = [0, 0, 255]
-        self.left_lane_line.poly_fill_with_other_lane(self.right_lane_line)
 
-        warp_zero = np.zeros_like(self.binary_warped).astype(np.uint8)
-        color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
-
-        # Recast the x and y points into usable format for cv2.fillPoly()
-        pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-        pts_right = np.array(
-            [np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
-        pts = np.hstack((pts_left, pts_right))
-
-        # Draw the lane onto the warped blank image
-        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+        # visualize the lane as a poly fill.
+        color_warp = self.left_lane_line.poly_fill_with_other_lane(
+            self.right_lane_line, np.shape(self.binary_warped))
 
         # Warp the blank back to original image space
-        # using inverse perspective matrix (Minv)
-        newwarp = cv2.warpPerspective(
+        # using inverse perspective matrix
+        lane_poly = cv2.warpPerspective(
             color_warp, self._perspective_inverse, (self.img_size))
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 2
+        font_color = (0, 255, 0)
+        line_type = 3
+
+        left_text_pos = (20, 100)
+        if (self.left_lane_line.radius_of_curvature > 10000):
+            left_text = 'Left Curvature=Straight'
+        else:
+            left_text = 'Left Curvature={:3.4f}'.format(
+                self.left_lane_line.radius_of_curvature)
+
+        cv2.putText(lane_poly,
+                    left_text,
+                    left_text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
+        right_text_pos = (20, 160)
+        # If greater than 10000m (10k) assume straight
+        if (self.right_lane_line.radius_of_curvature > 10000):
+            right_text = 'Right Curvature=Straight'
+        else:
+            right_text = 'Right Curvature={:3.4f}'.format(
+                self.right_lane_line.radius_of_curvature)
+
+        cv2.putText(lane_poly,
+                    right_text,
+                    right_text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
         # Combine the result with the original image
-        result = cv2.addWeighted(self.source_img, 1, newwarp, 0.3, 0)
-        return result
+        return cv2.addWeighted(self.source_img, 1, lane_poly, 0.3, 0)
 
     def __init__(self, calibration_image_path):
         """Constructor."""
@@ -386,9 +425,3 @@ class LaneLines():
 
         self._init_perspective_transform_matrices()
         self._init_calibrate_camera(calibration_image_path)
-
-
-# lanes = LaneLines('camera_cal')
-# img = mpimg.imread("test_images/test1.jpg")
-# output_img = lanes.process_image(img)
-# lanes.write_image("output_image.jpg", output_img)
