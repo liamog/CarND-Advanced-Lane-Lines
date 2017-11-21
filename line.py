@@ -7,7 +7,7 @@ import sys
 class Line():
     """Line class captures line as a polynomial."""
 
-    def __init__(self):
+    def __init__(self, shape):
         """Line class Initializer."""
         # was the line detected in the last iteration?
         self.detected = False
@@ -25,6 +25,9 @@ class Line():
         self.allx = None
         # y values for detected line pixels
         self.ally = None
+        # shape to use to calculate curvature and lane center. Should
+        # be the same as the image size being used to detect lanes.
+        self.shape = shape
 
     def fit_line(self, nonzerox, nonzeroy):
         """Fit a line to the pixels defined in nonzerox, nonzeroy."""
@@ -43,9 +46,9 @@ class Line():
     def _calculate_curvature(self):
         ym_per_pix = 30 / 720  # meters per pixel in y dimension
         xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
-        car_center = (1280 / 2) * xm_per_pix
+        car_center = (self.shape[1] / 2) * xm_per_pix
 
-        fitx, fity = self.get_best_fitted_for_shape((650, 1280))
+        fitx, fity = self.get_best_fitted_for_shape(self.shape)
         x_eval = fitx[649] * xm_per_pix
         self.line_base_pos = car_center - x_eval
         if sys.version_info[0] < 3:

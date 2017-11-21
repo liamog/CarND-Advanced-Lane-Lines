@@ -216,33 +216,6 @@ class LaneLines():
         for img in self._images:
             self.binary_warped += img
 
-    def process_image(self, img):
-        """Process image and return image with Lane Line drawn."""
-        self.clear()
-        self.source_img = img
-        self.img_width = img.shape[1]
-        self.img_height = img.shape[0]
-        self.img_size = (self.img_width, self.img_height)
-
-        self._prepare_img()
-        # Take a histogram of the bottom half of the image
-        # Create an output image to draw on and  self.visualize the result
-#         self.binary_warped *= 255
-        single_channel = self.binary_warped
-        self.lane_find_visualization = np.dstack(
-            (single_channel * 255,
-             single_channel * 255,
-             single_channel * 255)).astype(np.uint8)
-
-        self.binary_warped[0:self._warped_y_range[0]:1, ::] = 0
-        # mask bottom of warped image to remove noise
-        self.binary_warped[self._warped_y_range[1]:self.binary_warped.shape[0] - 1:1, ::] = 0
-        if (not self.right_lane_line.detected or
-                not self.left_lane_line.detected):
-            return self._find_line_full_search()
-        else:
-            return self._find_lines_from_best_fit()
-
     def _find_line_full_search(self):
         # mask top of warped image to remove noise
 
@@ -363,7 +336,7 @@ class LaneLines():
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1.5
-        font_color = (0, 255, 0)
+        font_color = (255, 255, 255)
         line_type = 3
 
         left_text_pos = (20, 100)
@@ -465,11 +438,39 @@ class LaneLines():
         self.lane_find_visualization = None
         self.histogram = None
 
-    def __init__(self, calibration_image_path):
-        """Constructor."""
+    def process_image(self, img):
+        """Process image and return image with Lane Line drawn."""
+        self.clear()
+        self.source_img = img
+        self.img_width = img.shape[1]
+        self.img_height = img.shape[0]
+        self.img_size = (self.img_width, self.img_height)
 
+        self._prepare_img()
+
+        single_channel = self.binary_warped
+        self.lane_find_visualization = np.dstack(
+            (single_channel * 255,
+             single_channel * 255,
+             single_channel * 255)).astype(np.uint8)
+
+        # mask top of warped image to remove noise
+        self.binary_warped[0:self._warped_y_range[0]:1, ::] = 0
+        # mask bottom of warped image to remove noise
+        self.binary_warped[self._warped_y_range[1]
+            :self.binary_warped.shape[0] - 1:1, ::] = 0
+        if (not self.right_lane_line.detected or
+                not self.left_lane_line.detected):
+            return self._find_line_full_search()
+        else:
+            return self._find_lines_from_best_fit()
+
+
+    def __init__(self, calibration_image_path):
+        """Initializer."""
         # Configuration file to store threshold settings.
         self._thresholds_file_name = "thresholds.p"
+        # cache file to store camera calibration data.
         self._calibration_filename = "calibration_data.p"
 
         # Set to the image currently being processed
@@ -495,7 +496,7 @@ class LaneLines():
 
         # range along y that we search for lane pixels.
         # Use to ignore noise in the distance and the car bonnet
-        self._warped_y_range = (300, 650)
+        self._warped_y_range = (100, 650)
 
         self._grad_x_binary = None
         self._grad_y_binary = None
@@ -521,8 +522,8 @@ class LaneLines():
         self.histogram = None
 
         # Detected Lanes
-        self.right_lane_line = Line()
-        self.left_lane_line = Line()
+        self.right_lane_line = Line((720, 1280))
+        self.left_lane_line = Line((720,1280))
 
         # Initialize 
         self._init_perspective_transform_matrices()
