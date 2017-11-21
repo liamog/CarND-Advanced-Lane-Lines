@@ -1,6 +1,7 @@
 """line module."""
 import numpy as np
 import cv2
+import sys
 
 
 class Line():
@@ -15,7 +16,7 @@ class Line():
         # polynomial coefficients for the most recent fit
         self.current_fit = [np.array([False])]
         # radius of curvature of the line in some units
-        self.radius_of_curvature = None
+        self.radius_of_curvature = 0.0
         # distance in meters of vehicle center from the line
         self.line_base_pos = None
         # difference in fit coefficients between last and new fits
@@ -42,17 +43,17 @@ class Line():
     def _calculate_curvature(self):
         ym_per_pix = 30 / 720  # meters per pixel in y dimension
         xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
-
-        fitx, fity = self.get_best_fitted_for_shape((650, 1280))
-        fit_cr = np.polyfit(fity * ym_per_pix, fitx * xm_per_pix, 2)
-
         car_center = (1280 / 2) * xm_per_pix
 
-        y_eval = np.max(fity)
-        # fit for max y
+        fitx, fity = self.get_best_fitted_for_shape((650, 1280))
         x_eval = fitx[649] * xm_per_pix
         self.line_base_pos = car_center - x_eval
-
+        if sys.version_info[0] < 3:
+            return
+        fit_cr = np.polyfit(fity * ym_per_pix,
+                            fitx.astype(np.float) * xm_per_pix, 2)
+        y_eval = np.max(fity)
+        # fit for max y
         self.radius_of_curvature = (
             (1 + (2 * fit_cr[0] * y_eval + fit_cr[1])**2)**1.5) / \
             np.absolute(2 * fit_cr[0])

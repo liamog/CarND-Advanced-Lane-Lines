@@ -1,11 +1,13 @@
 """Lane Line Module. c Liam O'Gorman."""
-import numpy as np
-import cv2
-import matplotlib.image as mpimg
 import glob
-import pickle
 import os.path
+import pickle
+import sys
 
+import matplotlib.image as mpimg
+import numpy as np
+
+import cv2
 from line import Line
 
 
@@ -25,8 +27,9 @@ class LaneLines():
         self._perspective_inverse = cv2.getPerspectiveTransform(dst, src)
 
     def _convert_to_gray(self, img):
+        # If we have 
         if len(img.shape) > 2:
-            channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
+            channel_count = img.shape[2]  
             if (channel_count == 3):
                 return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return img
@@ -45,18 +48,21 @@ class LaneLines():
         return shape
 
     def _init_calibrate_camera(self, calibration_image_path):
-        pickle_file = "calibration_data.p"
-        if (os.path.isfile(pickle_file)):
-            calibration_data = pickle.load(open(pickle_file, "rb"))
-            if (calibration_data):
-                self._mtx = calibration_data["mtx"]
-                self._dist = calibration_data["dist"]
-                self._rvecs = calibration_data["rvecs"]
-                self._tvecs = calibration_data["tvecs"]
-                return
+        if (os.path.isfile(self._calibration_filename)):
+          with open(self._calibration_filename, 'rb') as calibration_file:
+            if sys.version_info[0] < 3:
+                calibration_data = pickle.load(calibration_file)
+            else:
+                calibration_data = pickle.load(
+                    calibration_file, encoding='latin1')
+            self._mtx = calibration_data["mtx"]
+            self._dist = calibration_data["dist"]
+            self._rvecs = calibration_data["rvecs"]
+            self._tvecs = calibration_data["tvecs"]
+            return 
 
-        nx = 9
-        ny = 6
+        nx = int(9)
+        ny = int(6)
 
         objpoints = []
         imgpoints = []
@@ -80,8 +86,9 @@ class LaneLines():
                                 "dist": self._dist,
                                 "rvecs": self._rvecs,
                                 "tvecs": self._tvecs}
-            pickle.dump(calibration_data, open(pickle_file, "wb"))
-
+            pickle.dump(calibration_data, 
+                        open(self._calibration_filename, "wb"), 
+                        protocol=2)
         else:
             print("Failed to Calibrate Camera")
 
@@ -184,11 +191,12 @@ class LaneLines():
                                           self.img_size,
                                           flags=cv2.INTER_LINEAR)
         # Crop out the bottom of the image where part of the car is visible.
-        self.warped = self.warped[0:self.warped.shape[0] - 41:, :]
+        self.warped = self.warped[0:self.warped.shape[0]:, :]
         self.hls = cv2.cvtColor(self.warped, cv2.COLOR_RGB2HLS)
         self.s_channel = self.hls[:, :, 2]
         self.gray = cv2.cvtColor(self.warped, cv2.COLOR_RGB2GRAY)
         # Changes this to different sources to try different channels etc.
+
         self.source_channel = self.s_channel
         # Apply each of the thresholding functions
         self._build_gradients_for_source()
@@ -210,6 +218,7 @@ class LaneLines():
 
     def process_image(self, img):
         """Process image and return image with Lane Line drawn."""
+        self.clear()
         self.source_img = img
         self.img_width = img.shape[1]
         self.img_height = img.shape[0]
@@ -217,8 +226,6 @@ class LaneLines():
 
         self._prepare_img()
         # Take a histogram of the bottom half of the image
-        self.histogram = np.sum(
-            self.binary_warped[self.binary_warped.shape[0] // 2:, :], axis=0)
         # Create an output image to draw on and  self.visualize the result
 #         self.binary_warped *= 255
         single_channel = self.binary_warped
@@ -227,6 +234,9 @@ class LaneLines():
              single_channel * 255,
              single_channel * 255)).astype(np.uint8)
 
+        self.binary_warped[0:self._warped_y_range[0]:1, ::] = 0
+        # mask bottom of warped image to remove noise
+        self.binary_warped[self._warped_y_range[1]:self.binary_warped.shape[0] - 1:1, ::] = 0
         if (not self.right_lane_line.detected or
                 not self.left_lane_line.detected):
             return self._find_line_full_search()
@@ -234,6 +244,10 @@ class LaneLines():
             return self._find_lines_from_best_fit()
 
     def _find_line_full_search(self):
+        # mask top of warped image to remove noise
+
+        self.histogram = np.sum(
+            self.binary_warped[self.binary_warped.shape[0] // 2:, :], axis=0)
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
         midpoint = np.int(self.histogram.shape[0] / 2)
@@ -243,7 +257,8 @@ class LaneLines():
         # Choose the number of sliding windows
         nwindows = 9
         # Set height of windows
-        window_height = np.int(self.binary_warped.shape[0] / nwindows)
+        window_height = np.int(
+            (self._warped_y_range[1] - self._warped_y_range[0]) / nwindows)
         # Identify the x and y positions of all nonzero pixels in the image
         nonzero = self.binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
@@ -262,9 +277,10 @@ class LaneLines():
         # Step through the windows one by one
         for window in range(nwindows):
             # Identify window boundaries in x and y (and right and left)
-            win_y_low = self.binary_warped.shape[0] - \
+            win_y_low = self._warped_y_range[1] - \
                 (window + 1) * window_height
-            win_y_high = self.binary_warped.shape[0] - window * window_height
+            win_y_high = self._warped_y_range[1] - \
+                window * window_height
             win_xleft_low = leftx_current - margin
             win_xleft_high = leftx_current + margin
             win_xright_low = rightx_current - margin
@@ -391,7 +407,7 @@ class LaneLines():
         else:
             side = "Left"
 
-        center_text = 'Car is {:3.4f}m to {} from lane center'.format(
+        center_text = 'Car is {:3.4f}m ({}) from lane center'.format(
             signed_dist_from_center, side)
         center_text_pos = (20, 220)
 
@@ -402,12 +418,60 @@ class LaneLines():
                     font_scale,
                     font_color,
                     line_type)
+        cv2.line(lane_poly,
+                 (int(self.img_width / 2), 0),
+                 (int(self.img_width / 2), int(self.img_height)),
+                 (255, 0, 0), 3)
 
         # Combine the result with the original image
         return cv2.addWeighted(self.source_img, 1, lane_poly, 0.3, 0)
 
+    def set_thresholds(self,
+                       grad_x_threshold,
+                       grad_y_threshold,
+                       mag_threshold,
+                       dir_threshold):
+        self._grad_x_threshold = grad_x_threshold
+        self._grad_y_threshold = grad_y_threshold
+        self._mag_threshold = mag_threshold
+        self._dir_threshold = dir_threshold
+
+    def save_thresholds(self):
+        '''Save threshold configuration.'''
+        config = {
+            "grad_x_threshold": self._grad_x_threshold,
+            "grad_y_threshold": self._grad_y_threshold,
+            "mag_threshold": self._mag_threshold,
+            "dir_threshold": self._dir_threshold,
+            }
+        pickle.dump(config, open(self._thresholds_file_name, "wb"))
+
+    def load_thresholds(self):
+        '''Loads previously saved threshold configuration.'''
+        if os.path.exists(self._thresholds_file_name):
+            with open(self._thresholds_file_name, 'rb') as config_file:
+                config = pickle.load(config_file, encoding='latin1')
+                self._grad_x_threshold = config["grad_x_threshold"]
+                self._grad_y_threshold = config["grad_y_threshold"]
+                self._mag_threshold = config["mag_threshold"]
+                self._dir_threshold = config["dir_threshold"]
+    
+    def clear(self):
+        self.gray = None
+        self.source_channel = None
+
+        self.warped = None
+        self.binary_warped = None
+        self.lane_find_visualization = None
+        self.histogram = None
+
     def __init__(self, calibration_image_path):
         """Constructor."""
+
+        # Configuration file to store threshold settings.
+        self._thresholds_file_name = "thresholds.p"
+        self._calibration_filename = "calibration_data.p"
+
         # Set to the image currently being processed
         self._img = None
         self._images = []
@@ -429,19 +493,22 @@ class LaneLines():
         # threshold values for the gradient direction in rads
         self._dir_threshold = (0.0, 0.47123889803846897)
 
+        # range along y that we search for lane pixels.
+        # Use to ignore noise in the distance and the car bonnet
+        self._warped_y_range = (300, 650)
+
         self._grad_x_binary = None
         self._grad_y_binary = None
         self._grad_mag_binary = None
         self._grad_dir_binary = None
-
-        self.right_lane_line = Line()
-        self.left_lane_line = Line()
 
         # Camera Calibration support
         self._calibration_mtx = None
         self._calibration_dist = None
         self._calibration_rvecs = None
         self._calibration_tvecs = None
+
+        # Calibration images output
         self.callibration_chess_boards = []
 
         # Image processing
@@ -453,5 +520,11 @@ class LaneLines():
         self.lane_find_visualization = None
         self.histogram = None
 
+        # Detected Lanes
+        self.right_lane_line = Line()
+        self.left_lane_line = Line()
+
+        # Initialize 
         self._init_perspective_transform_matrices()
         self._init_calibrate_camera(calibration_image_path)
+        self.load_thresholds()
