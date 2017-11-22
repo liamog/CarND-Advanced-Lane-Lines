@@ -49,13 +49,13 @@ class Line():
         car_center = (self.shape[1] / 2) * xm_per_pix
 
         fitx, fity = self.get_best_fitted_for_shape(self.shape)
-        x_eval = fitx[649] * xm_per_pix
+        x_eval = fitx[self.shape[0] - 1] * xm_per_pix
         self.line_base_pos = car_center - x_eval
         if sys.version_info[0] < 3:
             return
         fit_cr = np.polyfit(fity * ym_per_pix,
                             fitx.astype(np.float) * xm_per_pix, 2)
-        y_eval = np.max(fity)
+        y_eval = self.shape[0]-1
         # fit for max y
         self.radius_of_curvature = (
             (1 + (2 * fit_cr[0] * y_eval + fit_cr[1])**2)**1.5) / \

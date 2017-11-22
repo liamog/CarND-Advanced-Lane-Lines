@@ -105,7 +105,7 @@ class LaneLines():
 
     def _build_grad_x(self):
         # Apply threshold
-        # Apply x or y gradient with the OpenCV Sobel() function
+        # Apply x gradient with the OpenCV Sobel() function
         # and take the absolute value
         abs_sobel = np.absolute(self._sobelx)
         # Rescale back to 8 bit integer
@@ -117,16 +117,17 @@ class LaneLines():
                             (scaled_sobel <= self._grad_x_threshold[1])] = 1
 
     def _build_grad_y(self):
+        print(self._grad_y_threshold)
         # Apply threshold
-        # Apply x or y gradient with the OpenCV Sobel() function
+        # Apply y gradient with the OpenCV Sobel() function
         # and take the absolute value
         abs_sobel = np.absolute(self._sobely)
         # Rescale back to 8 bit integer
         scaled_sobel = np.uint8(255 * abs_sobel / np.max(abs_sobel))
         # Create a copy and apply the threshold
-        self._grad_x_binary = np.zeros_like(scaled_sobel)
+        self._grad_y_binary = np.zeros_like(scaled_sobel)
         # Here I'm using inclusive (>=, <=) thresholds, but exclusive is ok too
-        self._grad_x_binary[(scaled_sobel >= self._grad_y_threshold[0]) &
+        self._grad_y_binary[(scaled_sobel >= self._grad_y_threshold[0]) &
                             (scaled_sobel <= self._grad_y_threshold[1])] = 1
 
     def _build_grad_mag(self):
@@ -209,7 +210,7 @@ class LaneLines():
              (self._grad_dir_binary == 1))] = 1
         # Smooth the lines by merging the last n frames
         self._images.append(self.binary_warped)
-        if len(self._images) > 5:
+        if len(self._images) > 3:
             del self._images[0]
 
         # merge image with previous images.
@@ -496,7 +497,7 @@ class LaneLines():
 
         # range along y that we search for lane pixels.
         # Use to ignore noise in the distance and the car bonnet
-        self._warped_y_range = (100, 650)
+        self._warped_y_range = (100, 690)
 
         self._grad_x_binary = None
         self._grad_y_binary = None

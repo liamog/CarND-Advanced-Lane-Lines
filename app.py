@@ -186,7 +186,7 @@ class DrawFrame(wx.Frame):
         ll = LaneLines('camera_cal')
 
         ll.set_thresholds(grad_x_threshold=grad_x_threshold,
-                          grad_y_threshold=grad_x_threshold,
+                          grad_y_threshold=grad_y_threshold,
                           mag_threshold=mag_threshold,
                           dir_threshold=dir_threshold)
         #process the image
@@ -237,6 +237,11 @@ class DrawFrame(wx.Frame):
 
     def SaveData(self):
         ll = LaneLines('camera')
+        ll.set_thresholds(grad_x_threshold=grad_x_threshold,
+                            grad_y_threshold=grad_y_threshold,
+                            mag_threshold=mag_threshold,
+                            dir_threshold=dir_threshold)
+        ll.save_thresholds()
 
     def NumpyArrayToWxImage(self, nparray):
         if (len(np.shape(nparray)) == 2):
