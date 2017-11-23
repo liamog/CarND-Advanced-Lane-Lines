@@ -27,42 +27,42 @@ class LaneLines():
         self._perspective_inverse = cv2.getPerspectiveTransform(dst, src)
 
     def _convert_to_gray(self, img):
-        # If we have 
+        # If we have
         if len(img.shape) > 2:
-            channel_count = img.shape[2]  
+            channel_count = img.shape[2]
             if (channel_count == 3):
                 return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return img
 
-    def _calibrate_camera_from_image(self, img, nx, ny, objpoints, imgpoints):
-        objp = np.zeros((ny * nx, 3), np.float32)
-        objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
+    def _calibrate_camera_from_image(self, img, num_x, num_y, objpoints, imgpoints):
+        objp = np.zeros((num_y * num_x, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:num_x, 0:num_y].T.reshape(-1, 2)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         shape = gray.shape[::-1]
-        ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
+        ret, corners = cv2.findChessboardCorners(gray, (num_x, num_y), None)
         if ret:
             objpoints.append(objp)
             imgpoints.append(corners)
-            img = cv2.drawChessboardCorners(img, (nx, ny), corners, ret)
+            img = cv2.drawChessboardCorners(img, (num_x, num_y), corners, ret)
             self.callibration_chess_boards.append(img)
         return shape
 
     def _init_calibrate_camera(self, calibration_image_path):
         if (os.path.isfile(self._calibration_filename)):
-          with open(self._calibration_filename, 'rb') as calibration_file:
-            if sys.version_info[0] < 3:
-                calibration_data = pickle.load(calibration_file)
-            else:
-                calibration_data = pickle.load(
-                    calibration_file, encoding='latin1')
-            self._mtx = calibration_data["mtx"]
-            self._dist = calibration_data["dist"]
-            self._rvecs = calibration_data["rvecs"]
-            self._tvecs = calibration_data["tvecs"]
-            return 
+            with open(self._calibration_filename, 'rb') as calibration_file:
+                if sys.version_info[0] < 3:
+                    calibration_data = pickle.load(calibration_file)
+                else:
+                    calibration_data = pickle.load(
+                        calibration_file, encoding='latin1')
+                self._mtx = calibration_data["mtx"]
+                self._dist = calibration_data["dist"]
+                self._rvecs = calibration_data["rvecs"]
+                self._tvecs = calibration_data["tvecs"]
+                return
 
-        nx = int(9)
-        ny = int(6)
+        num_x = int(9)
+        num_y = int(6)
 
         objpoints = []
         imgpoints = []
@@ -72,11 +72,11 @@ class LaneLines():
             print(file)
             img = mpimg.imread(file)
             shape = self._calibrate_camera_from_image(
-                img, nx, ny, objpoints, imgpoints)
+                img, num_x, num_y, objpoints, imgpoints)
 
         ret = cv2.calibrateCamera(
             objpoints, imgpoints, shape, None, None)
-        if(ret[0]):
+        if ret[0]:
             print("Successfully Calibrated Camera")
             self._mtx = ret[1]
             self._dist = ret[2]
@@ -86,8 +86,8 @@ class LaneLines():
                                 "dist": self._dist,
                                 "rvecs": self._rvecs,
                                 "tvecs": self._tvecs}
-            pickle.dump(calibration_data, 
-                        open(self._calibration_filename, "wb"), 
+            pickle.dump(calibration_data,
+                        open(self._calibration_filename, "wb"),
                         protocol=2)
         else:
             print("Failed to Calibrate Camera")
@@ -117,7 +117,6 @@ class LaneLines():
                             (scaled_sobel <= self._grad_x_threshold[1])] = 1
 
     def _build_grad_y(self):
-        print(self._grad_y_threshold)
         # Apply threshold
         # Apply y gradient with the OpenCV Sobel() function
         # and take the absolute value
@@ -156,7 +155,7 @@ class LaneLines():
         """Write an image with the correct color space."""
         if len(img.shape) > 2:
             channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
-            if (channel_count == 3):
+            if channel_count == 3:
                 cv2.imwrite(name, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         else:
             cv2.imwrite(name, img)
@@ -164,7 +163,7 @@ class LaneLines():
     def _weighted_img(self, img, initial_img, alpha=0.8, beta=1., epsilon=0.):
         """`img` is the image to overlay on top of initial img.
 
-        `initial_img` should be the image before any processing.
+        `initial_img` should be the image before anum_y processing.
         The result image is computed as follows:
 
         initial_img * alpha + img * beta + epsilon
@@ -302,23 +301,36 @@ class LaneLines():
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
         self.right_lane_line.fit_line(rightx, righty)
+
+        # Sanity check the current fit, if looks reasonable then
+        # add to the smooth fit.
+        self.right_lane_line.add_current_fit_to_smooth()
+        self.left_lane_line.add_current_fit_to_smooth()
+
         return self._visualize_lanes()
 
-    def _find_lines_from_best_fit(self):
+    def _find_lines_from_smooth(self):
         nonzero = self.binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
         margin = 100
-        self.left_lane_line.fit_line_from_current(nonzerox, nonzeroy, margin)
-        self.right_lane_line.fit_line_from_current(nonzerox, nonzeroy, margin)
+        self.left_lane_line.fit_line_from_smooth(nonzerox, nonzeroy, margin)
+        self.right_lane_line.fit_line_from_smooth(nonzerox, nonzeroy, margin)
+
+        # TODO Check for outliers and reject.
+        #  
+        self.right_lane_line.add_current_fit_to_smooth()
+        self.left_lane_line.add_current_fit_to_smooth()
+
+
         return self._visualize_lanes()
 
     def _visualize_lanes(self):
         """Visualize the lane as an overlay image fill between the lines."""
-        self.lane_find_visualization[self.left_lane_line.ally,
-                                     self.left_lane_line.allx] = [255, 0, 0]
-        self.lane_find_visualization[self.right_lane_line.ally,
-                                     self.right_lane_line.allx] = [0, 0, 255]
+        self.lane_find_visualization[self.left_lane_line.all_y,
+                                     self.left_lane_line.all_x] = [255, 0, 0]
+        self.lane_find_visualization[self.right_lane_line.all_y,
+                                     self.right_lane_line.all_x] = [0, 0, 255]
 
         # visualize the curve.
         self.left_lane_line.visualize_lane_current_fit(
@@ -327,9 +339,11 @@ class LaneLines():
             self.lane_find_visualization)
 
         # visualize the lane as a poly fill.
-        color_warp = self.left_lane_line.poly_fill_with_other_lane(
-            self.right_lane_line, np.shape(self.binary_warped))
+        if not self.left_lane_line.valid or not self.right_lane_line.valid:
+            return self.source_img
 
+        color_warp = self.left_lane_line.poly_fill_with_other_lane(
+            self.right_lane_line)
         # Warp the blank back to original image space
         # using inverse perspective matrix
         lane_poly = cv2.warpPerspective(
@@ -341,11 +355,11 @@ class LaneLines():
         line_type = 3
 
         left_text_pos = (20, 100)
-        if (self.left_lane_line.radius_of_curvature > 10000):
+        if self.left_lane_line.smooth_radius_of_curvature > 10000:
             left_text = 'Left CurRad=Straight'
         else:
             left_text = 'Left CurRad={:3.4f}'.format(
-                self.left_lane_line.radius_of_curvature)
+                self.left_lane_line.smooth_radius_of_curvature)
         left_text += ': lane_dist={:3.4f}'.format(
             self.left_lane_line.line_base_pos)
         cv2.putText(lane_poly,
@@ -358,11 +372,11 @@ class LaneLines():
 
         right_text_pos = (20, 160)
         # If greater than 10000m (10k) assume straight
-        if (self.right_lane_line.radius_of_curvature > 10000):
+        if (self.right_lane_line.smooth_radius_of_curvature > 10000):
             right_text = 'Right CurRad=Straight'
         else:
             right_text = 'Right CurRad={:3.4f}'.format(
-                self.right_lane_line.radius_of_curvature)
+                self.right_lane_line.smooth_radius_of_curvature)
         right_text += (': lane_dist={:3.4f}'.format(
             self.right_lane_line.line_base_pos))
 
@@ -417,7 +431,7 @@ class LaneLines():
             "grad_y_threshold": self._grad_y_threshold,
             "mag_threshold": self._mag_threshold,
             "dir_threshold": self._dir_threshold,
-            }
+        }
         pickle.dump(config, open(self._thresholds_file_name, "wb"))
 
     def load_thresholds(self):
@@ -429,7 +443,7 @@ class LaneLines():
                 self._grad_y_threshold = config["grad_y_threshold"]
                 self._mag_threshold = config["mag_threshold"]
                 self._dir_threshold = config["dir_threshold"]
-    
+
     def clear(self):
         self.gray = None
         self.source_channel = None
@@ -458,14 +472,12 @@ class LaneLines():
         # mask top of warped image to remove noise
         self.binary_warped[0:self._warped_y_range[0]:1, ::] = 0
         # mask bottom of warped image to remove noise
-        self.binary_warped[self._warped_y_range[1]
-            :self.binary_warped.shape[0] - 1:1, ::] = 0
-        if (not self.right_lane_line.detected or
-                not self.left_lane_line.detected):
+        self.binary_warped[self._warped_y_range[1]                           :self.binary_warped.shape[0] - 1:1, ::] = 0
+        if (not self.right_lane_line.valid or
+                not self.left_lane_line.valid):
             return self._find_line_full_search()
         else:
-            return self._find_lines_from_best_fit()
-
+            return self._find_lines_from_smooth()
 
     def __init__(self, calibration_image_path):
         """Initializer."""
@@ -524,9 +536,9 @@ class LaneLines():
 
         # Detected Lanes
         self.right_lane_line = Line((720, 1280))
-        self.left_lane_line = Line((720,1280))
+        self.left_lane_line = Line((720, 1280))
 
-        # Initialize 
+        # Initialize
         self._init_perspective_transform_matrices()
         self._init_calibrate_camera(calibration_image_path)
         self.load_thresholds()
