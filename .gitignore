@@ -1,0 +1,7 @@
+.ip*
+*.pyc
+*output*
+challenge_images/*
+project_video_imgs/*
+seq_images/*
+.vscode/*
