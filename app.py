@@ -21,6 +21,10 @@ class DrawFrame(wx.Frame):
         self.create_widgets()
         self.create_bindings()
         self.setup_layout()
+        self.grad_x_threshold = None
+        self.grad_y_threshold = None
+        self.mag_threshold = None
+        self.dir_threshold = None
         self.Show()
 
 
@@ -44,6 +48,8 @@ class DrawFrame(wx.Frame):
 
 
     def create_widgets(self):
+        ll = LaneLines('camera_cal')
+
         self.panel = wx.Panel(self)
 
         self.image_src = wx.StaticBitmap(self)
@@ -57,42 +63,42 @@ class DrawFrame(wx.Frame):
         self.text_dir = wx.StaticText(self, label="Direction Thresholds")
 
         self.slider_grad_x_min = wx.Slider(self,
-                                           value=46,
+                                           value=ll.grad_x_threshold[0],
                                            minValue=0,
                                            maxValue=255,
                                            pos=wx.DefaultPosition,
                                            size=wx.DefaultSize,
                                            style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self.slider_grad_x_max = wx.Slider(self,
-                                           value=82,
+                                           value=ll.grad_x_threshold[1],
                                            minValue=0,
                                            maxValue=255,
                                            pos=wx.DefaultPosition,
                                            size=wx.DefaultSize,
                                            style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self.slider_grad_y_min = wx.Slider(self,
-                                           value=14,
+                                           value=ll.grad_y_threshold[0],
                                            minValue=0,
                                            maxValue=255,
                                            pos=wx.DefaultPosition,
                                            size=wx.DefaultSize,
                                            style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self.slider_grad_y_max = wx.Slider(self,
-                                           value=166,
+                                           value=ll.grad_y_threshold[1],
                                            minValue=0,
                                            maxValue=255,
                                            pos=wx.DefaultPosition,
                                            size=wx.DefaultSize,
                                            style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self.slider_mag_min = wx.Slider(self,
-                                        value=17,
+                                        value=ll.mag_threshold[0],
                                         minValue=0,
                                         maxValue=255,
                                         pos=wx.DefaultPosition,
                                         size=wx.DefaultSize,
                                         style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self.slider_mag_max = wx.Slider(self,
-                                        value=255,
+                                        value=ll.mag_threshold[1],
                                         minValue=0,
                                         maxValue=255,
                                         pos=wx.DefaultPosition,
@@ -100,14 +106,15 @@ class DrawFrame(wx.Frame):
                                         style=wx.SL_HORIZONTAL | wx.SL_LABELS)
 
         self.slider_dir_min = wx.Slider(self,
-                                        value=0,
+                                        value=math.degrees(
+                                            ll.dir_threshold[0]),
                                         minValue=0,
                                         maxValue=360,
                                         pos=wx.DefaultPosition,
                                         size=wx.DefaultSize,
                                         style=wx.SL_HORIZONTAL | wx.SL_LABELS)
         self.slider_dir_max = wx.Slider(self,
-                                        value=math.degrees(0.6632),
+                                        value=math.degrees(ll.dir_threshold[1]),
                                         minValue=0,
                                         maxValue=360,
                                         pos=wx.DefaultPosition,
@@ -166,29 +173,29 @@ class DrawFrame(wx.Frame):
         return image.ConvertToBitmap()
 
     def refresh(self):
-        grad_x_threshold = (self.slider_grad_x_min.GetValue(),
+        self.grad_x_threshold = (self.slider_grad_x_min.GetValue(),
                             self.slider_grad_x_max.GetValue())
-        grad_y_threshold = (self.slider_grad_y_min.GetValue(),
+        self.grad_y_threshold = (self.slider_grad_y_min.GetValue(),
                             self.slider_grad_y_max.GetValue())
-        mag_threshold = (self.slider_mag_min.GetValue(),
+        self.mag_threshold = (self.slider_mag_min.GetValue(),
                          self.slider_mag_max.GetValue())
         # Convert to radians
-        dir_threshold = (math.radians(self.slider_dir_min.GetValue()),
+        self.dir_threshold = (math.radians(self.slider_dir_min.GetValue()),
                          math.radians(self.slider_dir_max.GetValue()))
 
-        print("grad x threshold = {}".format(grad_x_threshold))
-        print("grad y threshold = {}".format(grad_y_threshold))
-        print("magnitude threshold = {}".format(mag_threshold))
-        print("directional threshold = {}".format(dir_threshold))
+        print("grad x threshold = {}".format(self.grad_x_threshold))
+        print("grad y threshold = {}".format(self.grad_y_threshold))
+        print("magnitude threshold = {}".format(self.mag_threshold))
+        print("directional threshold = {}".format(self.dir_threshold))
 
         # Always use a new object so different settings don't 
         # get merged together via previous image merging.
         ll = LaneLines('camera_cal')
 
-        ll.set_thresholds(grad_x_threshold=grad_x_threshold,
-                          grad_y_threshold=grad_y_threshold,
-                          mag_threshold=mag_threshold,
-                          dir_threshold=dir_threshold)
+        ll.set_thresholds(grad_x_threshold=self.grad_x_threshold,
+                          grad_y_threshold=self.grad_y_threshold,
+                          mag_threshold=self.mag_threshold,
+                          dir_threshold=self.dir_threshold)
         #process the image
         final_image = ll.process_image(self.img)
 
@@ -237,10 +244,10 @@ class DrawFrame(wx.Frame):
 
     def SaveData(self):
         ll = LaneLines('camera')
-        ll.set_thresholds(grad_x_threshold=grad_x_threshold,
-                            grad_y_threshold=grad_y_threshold,
-                            mag_threshold=mag_threshold,
-                            dir_threshold=dir_threshold)
+        ll.set_thresholds(grad_x_threshold=self.grad_x_threshold,
+                            grad_y_threshold=self.grad_y_threshold,
+                            mag_threshold=self.mag_threshold,
+                            dir_threshold=self.dir_threshold)
         ll.save_thresholds()
 
     def NumpyArrayToWxImage(self, nparray):

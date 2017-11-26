@@ -13,26 +13,26 @@ from line import Line
 
 class LaneLines():
     """The Lane Line Class."""
+    # Max number of frames to combine when searching 
+    # for lanes.
+    SMOOTH_OVER_N_FRAMES = 3
+    # Number of windows for the sliding window search
+    SEARCH_WINDOWS = 9
+    # Search window margin for both the sliding window and
+    # fast fit search.
+    MARGIN = 120
+    # If 5 frames in a row don't have a good lane match
+    # reset to sliding window search
+    MAX_REJECTED = 5
+
 
     def _init_perspective_transform_matrices(self):
-        src = np.float32([[279.0, 674.0],
-                          [531.0, 495.0],
-                          [762.5, 495.0],
-                          [1041.0, 674.0]])
-        dst = np.float32([[279.0, 674.0],
-                          [279.0, 495.0],
-                          [1041.0, 495.0],
-                          [1041.0, 674.0]])
+        src = np.float32([[230.0, 700.0], [531.0, 495.0],
+                        [762.5, 495.0], [1080.0, 700.0]])
+        dst = np.float32([[230.0, 700.0], [230.0, 495.0], [
+                        1080.0, 495.0], [1080.0, 700.0]])
         self._perspective_transform = cv2.getPerspectiveTransform(src, dst)
         self._perspective_inverse = cv2.getPerspectiveTransform(dst, src)
-
-    def _convert_to_gray(self, img):
-        # If we have
-        if len(img.shape) > 2:
-            channel_count = img.shape[2]
-            if (channel_count == 3):
-                return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        return img
 
     def _calibrate_camera_from_image(self, img, num_x, num_y, objpoints, imgpoints):
         objp = np.zeros((num_y * num_x, 3), np.float32)
@@ -113,8 +113,8 @@ class LaneLines():
         # Create a copy and apply the threshold
         self._grad_x_binary = np.zeros_like(scaled_sobel)
         # Here I'm using inclusive (>=, <=) thresholds, but exclusive is ok too
-        self._grad_x_binary[(scaled_sobel >= self._grad_x_threshold[0]) &
-                            (scaled_sobel <= self._grad_x_threshold[1])] = 1
+        self._grad_x_binary[(scaled_sobel >= self.grad_x_threshold[0]) &
+                            (scaled_sobel <= self.grad_x_threshold[1])] = 1
 
     def _build_grad_y(self):
         # Apply threshold
@@ -126,8 +126,8 @@ class LaneLines():
         # Create a copy and apply the threshold
         self._grad_y_binary = np.zeros_like(scaled_sobel)
         # Here I'm using inclusive (>=, <=) thresholds, but exclusive is ok too
-        self._grad_y_binary[(scaled_sobel >= self._grad_y_threshold[0]) &
-                            (scaled_sobel <= self._grad_y_threshold[1])] = 1
+        self._grad_y_binary[(scaled_sobel >= self.grad_y_threshold[0]) &
+                            (scaled_sobel <= self.grad_y_threshold[1])] = 1
 
     def _build_grad_mag(self):
         # Calculate the gradient magnitude
@@ -138,8 +138,8 @@ class LaneLines():
 
         # Create a binary image of ones where threshold is met, zeros otherwise
         self._grad_mag_binary = np.zeros_like(grad_mag)
-        self._grad_mag_binary[(grad_mag >= self._mag_threshold[0]) &
-                              (grad_mag <= self._mag_threshold[1])] = 1
+        self._grad_mag_binary[(grad_mag >= self.mag_threshold[0]) &
+                              (grad_mag <= self.mag_threshold[1])] = 1
 
     def _build_grad_dir(self):
         # Grayscale
@@ -148,17 +148,8 @@ class LaneLines():
         abs_grad_dir = np.arctan2(np.absolute(self._sobely),
                                   np.absolute(self._sobelx))
         self._grad_dir_binary = np.zeros_like(abs_grad_dir)
-        self._grad_dir_binary[(abs_grad_dir >= self._dir_threshold[0]) &
-                              (abs_grad_dir <= self._dir_threshold[1])] = 1
-
-    def write_image(self, name, img):
-        """Write an image with the correct color space."""
-        if len(img.shape) > 2:
-            channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
-            if channel_count == 3:
-                cv2.imwrite(name, cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        else:
-            cv2.imwrite(name, img)
+        self._grad_dir_binary[(abs_grad_dir >= self.dir_threshold[0]) &
+                              (abs_grad_dir <= self.dir_threshold[1])] = 1
 
     def _weighted_img(self, img, initial_img, alpha=0.8, beta=1., epsilon=0.):
         """`img` is the image to overlay on top of initial img.
@@ -201,24 +192,29 @@ class LaneLines():
         # Apply each of the thresholding functions
         self._build_gradients_for_source()
 
-        self.binary_warped = np.zeros_like(self.source_channel, np.int8)
-        self.binary_warped[
+        this_binary_warped = np.zeros_like(self.source_channel, np.int8)
+        this_binary_warped[
             ((self._grad_x_binary == 1) &
              (self._grad_y_binary == 1)) |
             ((self._grad_mag_binary == 1) &
              (self._grad_dir_binary == 1))] = 1
         # Smooth the lines by merging the last n frames
-        self._images.append(self.binary_warped)
-        if len(self._images) > 3:
+        self._images.append(this_binary_warped)
+        num_images = len(self._images)
+        
+        if num_images > LaneLines.SMOOTH_OVER_N_FRAMES:
+            # remove the oldest image
             del self._images[0]
+        num_images = len(self._images)
 
-        # merge image with previous images.
+        # merge binary image with previous images.
+        self.binary_warped = np.zeros_like(self.source_channel, np.int8)
         for img in self._images:
-            self.binary_warped += img
+            self.binary_warped[(self.binary_warped == 1) | (img == 1)] = 1 
 
     def _find_line_full_search(self):
         # mask top of warped image to remove noise
-
+        self.diagnostics.sliding_window = True
         self.histogram = np.sum(
             self.binary_warped[self.binary_warped.shape[0] // 2:, :], axis=0)
         # Find the peak of the left and right halves of the histogram
@@ -228,7 +224,7 @@ class LaneLines():
         rightx_base = np.argmax(self.histogram[midpoint:]) + midpoint
 
         # Choose the number of sliding windows
-        nwindows = 9
+        nwindows = LaneLines.SEARCH_WINDOWS
         # Set height of windows
         window_height = np.int(
             (self._warped_y_range[1] - self._warped_y_range[0]) / nwindows)
@@ -296,32 +292,53 @@ class LaneLines():
         # Extract left and right line pixel positions
         leftx = nonzerox[left_lane_inds]
         lefty = nonzeroy[left_lane_inds]
-        self.left_lane_line.fit_line(leftx, lefty)
+        fit_left_success = self.left_lane_line.fit_line(leftx, lefty)
 
         rightx = nonzerox[right_lane_inds]
         righty = nonzeroy[right_lane_inds]
-        self.right_lane_line.fit_line(rightx, righty)
+        fit_right_success = self.right_lane_line.fit_line(rightx, righty)
 
-        # Sanity check the current fit, if looks reasonable then
-        # add to the smooth fit.
-        self.right_lane_line.add_current_fit_to_smooth()
-        self.left_lane_line.add_current_fit_to_smooth()
-
+        if fit_left_success and fit_right_success:
+            # Sanity check the current fit, if looks reasonable then
+            # add to the smooth fit.
+            probable_lane, mean, sigma = \
+                self.left_lane_line.probable_lane_detected(self.right_lane_line)
+            self.diagnostics.average_lane_width = mean
+            self.diagnostics.lane_width_stddev = sigma
+            self.diagnostics.rejected = not probable_lane
+            if probable_lane:
+                self._rejected = 0
+                self.diagnostics_image
+                self.right_lane_line.add_current_fit_to_smooth()
+                self.left_lane_line.add_current_fit_to_smooth()
+            
         return self._visualize_lanes()
 
     def _find_lines_from_smooth(self):
+        self.diagnostics.fast_fit = True
         nonzero = self.binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
-        margin = 100
-        self.left_lane_line.fit_line_from_smooth(nonzerox, nonzeroy, margin)
-        self.right_lane_line.fit_line_from_smooth(nonzerox, nonzeroy, margin)
 
-        # TODO Check for outliers and reject.
-        #  
-        self.right_lane_line.add_current_fit_to_smooth()
-        self.left_lane_line.add_current_fit_to_smooth()
-
+        self.left_lane_line.fit_line_from_smooth(
+            nonzerox, nonzeroy, LaneLines.MARGIN, self.lane_find_visualization)
+        self.right_lane_line.fit_line_from_smooth(
+            nonzerox, nonzeroy, LaneLines.MARGIN, self.lane_find_visualization)
+        probable_lane, mean, sigma = \
+            self.left_lane_line.probable_lane_detected(self.right_lane_line)
+        self.diagnostics.average_lane_width = mean
+        self.diagnostics.lane_width_stddev = sigma
+        self.diagnostics.rejected = not probable_lane
+            
+        if probable_lane:
+            self._rejected = 0
+            self.right_lane_line.add_current_fit_to_smooth()
+            self.left_lane_line.add_current_fit_to_smooth()
+        else:
+            self._rejected += 1
+            if self._rejected > LaneLines.MAX_REJECTED:
+                self._rejected = 0
+                return self._find_line_full_search()
 
         return self._visualize_lanes()
 
@@ -332,16 +349,22 @@ class LaneLines():
         self.lane_find_visualization[self.right_lane_line.all_y,
                                      self.right_lane_line.all_x] = [0, 0, 255]
 
-        # visualize the curve.
+        self.diagnostics.write_to_image(self.diagnostics_image)
+
+        # visualize the current fit curve.
         self.left_lane_line.visualize_lane_current_fit(
-            self.lane_find_visualization)
+            self.lane_find_visualization, color=[255, 255, 0])
         self.right_lane_line.visualize_lane_current_fit(
-            self.lane_find_visualization)
+            self.lane_find_visualization, color=[255, 255, 0])
+        self.left_lane_line.visualize_lane_smooth_fit(
+            self.lane_find_visualization ,color=[255, 255, 255])
+        self.right_lane_line.visualize_lane_smooth_fit(
+            self.lane_find_visualization, color=[255, 255, 255])
+
+
+        # assert self.left_lane_line.line_base_pos != -1
 
         # visualize the lane as a poly fill.
-        if not self.left_lane_line.valid or not self.right_lane_line.valid:
-            return self.source_img
-
         color_warp = self.left_lane_line.poly_fill_with_other_lane(
             self.right_lane_line)
         # Warp the blank back to original image space
@@ -355,7 +378,7 @@ class LaneLines():
         line_type = 3
 
         left_text_pos = (20, 100)
-        if self.left_lane_line.smooth_radius_of_curvature > 10000:
+        if self.left_lane_line.smooth_radius_of_curvature > 15000:
             left_text = 'Left CurRad=Straight'
         else:
             left_text = 'Left CurRad={:3.4f}'.format(
@@ -388,8 +411,11 @@ class LaneLines():
                     font_color,
                     line_type)
 
-        signed_dist_from_center = self.right_lane_line.line_base_pos + \
-            self.left_lane_line.line_base_pos
+        center_of_lane = ((self.right_lane_line.line_base_pos - \
+                           self.left_lane_line.line_base_pos) / 2) + \
+                           self.left_lane_line.line_base_pos
+
+        signed_dist_from_center = self.left_lane_line.camera_pos - center_of_lane
         if (signed_dist_from_center > 0):
             side = "Right"
         else:
@@ -419,18 +445,18 @@ class LaneLines():
                        grad_y_threshold,
                        mag_threshold,
                        dir_threshold):
-        self._grad_x_threshold = grad_x_threshold
-        self._grad_y_threshold = grad_y_threshold
-        self._mag_threshold = mag_threshold
-        self._dir_threshold = dir_threshold
+        self.grad_x_threshold = grad_x_threshold
+        self.grad_y_threshold = grad_y_threshold
+        self.mag_threshold = mag_threshold
+        self.dir_threshold = dir_threshold
 
     def save_thresholds(self):
         '''Save threshold configuration.'''
         config = {
-            "grad_x_threshold": self._grad_x_threshold,
-            "grad_y_threshold": self._grad_y_threshold,
-            "mag_threshold": self._mag_threshold,
-            "dir_threshold": self._dir_threshold,
+            "grad_x_threshold": self.grad_x_threshold,
+            "grad_y_threshold": self.grad_y_threshold,
+            "mag_threshold": self.mag_threshold,
+            "dir_threshold": self.dir_threshold,
         }
         pickle.dump(config, open(self._thresholds_file_name, "wb"))
 
@@ -438,24 +464,31 @@ class LaneLines():
         '''Loads previously saved threshold configuration.'''
         if os.path.exists(self._thresholds_file_name):
             with open(self._thresholds_file_name, 'rb') as config_file:
-                config = pickle.load(config_file, encoding='latin1')
-                self._grad_x_threshold = config["grad_x_threshold"]
-                self._grad_y_threshold = config["grad_y_threshold"]
-                self._mag_threshold = config["mag_threshold"]
-                self._dir_threshold = config["dir_threshold"]
+                if sys.version_info[0] < 3:
+                    config = pickle.load(config_file)
+                else:
+                    config = pickle.load(config_file, encoding='latin1')
 
-    def clear(self):
+                self.grad_x_threshold = config["grad_x_threshold"]
+                self.grad_y_threshold = config["grad_y_threshold"]
+                self.mag_threshold = config["mag_threshold"]
+                self.dir_threshold = config["dir_threshold"]
+
+    def clear_images(self):
         self.gray = None
         self.source_channel = None
 
         self.warped = None
         self.binary_warped = None
         self.lane_find_visualization = None
+        self.diagnostics_image = None
         self.histogram = None
 
     def process_image(self, img):
         """Process image and return image with Lane Line drawn."""
-        self.clear()
+
+        self.diagnostics.frame_number += 1
+        self.clear_images()
         self.source_img = img
         self.img_width = img.shape[1]
         self.img_height = img.shape[0]
@@ -463,16 +496,18 @@ class LaneLines():
 
         self._prepare_img()
 
-        single_channel = self.binary_warped
+        single_channel = self.binary_warped * 255
         self.lane_find_visualization = np.dstack(
-            (single_channel * 255,
-             single_channel * 255,
-             single_channel * 255)).astype(np.uint8)
+            (single_channel,
+             single_channel,
+             single_channel)).astype(np.uint8)
+        self.diagnostics_image = np.zeros_like(
+            self.lane_find_visualization)
 
         # mask top of warped image to remove noise
         self.binary_warped[0:self._warped_y_range[0]:1, ::] = 0
         # mask bottom of warped image to remove noise
-        self.binary_warped[self._warped_y_range[1]                           :self.binary_warped.shape[0] - 1:1, ::] = 0
+        self.binary_warped[self._warped_y_range[1]:self.binary_warped.shape[0] - 1:1, ::] = 0
         if (not self.right_lane_line.valid or
                 not self.left_lane_line.valid):
             return self._find_line_full_search()
@@ -489,6 +524,10 @@ class LaneLines():
         # Set to the image currently being processed
         self._img = None
         self._images = []
+        self.img_width = 0
+        self.img_height = 0
+        self.img_size = (0,0)
+        
         # perspective transform matrix
         self._perspective_transform = None
 
@@ -496,16 +535,16 @@ class LaneLines():
         self._perspective_inverse = None
 
         # threshold values for the gradient in the X direction
-        self._grad_x_threshold = (46, 82)
+        self.grad_x_threshold = (0, 0)
         self._sobel_x_kernel = 9
         # threshold values for the gradient in the Y direction
-        self._grad_y_threshold = (14, 166)
+        self.grad_y_threshold = (0, 0)
         self._sobel_y_kernel = 9
 
         # threshold values for the gradient magnitude
-        self._mag_threshold = (17, 255)
+        self.mag_threshold = (0, 0)
         # threshold values for the gradient direction in rads
-        self._dir_threshold = (0.0, 0.47123889803846897)
+        self.dir_threshold = (0.0, 0.0)
 
         # range along y that we search for lane pixels.
         # Use to ignore noise in the distance and the car bonnet
@@ -526,19 +565,109 @@ class LaneLines():
         self.callibration_chess_boards = []
 
         # Image processing
+        self._sobelx = None
+        self._sobely = None
+
         self.gray = None
         self.source_channel = None
-
         self.warped = None
         self.binary_warped = None
         self.lane_find_visualization = None
         self.histogram = None
-
+        self.diagnostics_image = None
+ 
         # Detected Lanes
         self.right_lane_line = Line((720, 1280))
         self.left_lane_line = Line((720, 1280))
 
+        # Counter for consequetive rejected lanes.  
+        self._rejected = 0 
+
+        self.diagnostics = Diagnostics()
         # Initialize
         self._init_perspective_transform_matrices()
         self._init_calibrate_camera(calibration_image_path)
         self.load_thresholds()
+
+
+class Diagnostics():
+    def __init__(self):
+        self.frame_number = 0
+        self.average_lane_width = None
+        self.lane_width_stddev = None
+        self.rejected = None
+        self.sliding_window = None
+        self.fast_fit = None
+
+    def write_to_image(self, img):
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 1.5
+        font_color = (255, 255, 255)
+        line_type = 3
+
+        line_height = 50
+
+        text_pos = (20, 100)
+        text = 'FrameNumber={}'.format(
+            self.frame_number)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
+        text_pos = (text_pos[0], text_pos[1] + line_height)
+        text = 'Average Lane Width={:3.4f}'.format(
+            self.average_lane_width)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
+        text_pos = (text_pos[0], text_pos[1] + line_height)
+        text = 'Lane Width Std Dev={:3.4f}'.format(
+            self.lane_width_stddev)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
+        text_pos = (text_pos[0], text_pos[1] + line_height)
+        text = 'Rejected={}'.format(
+            self.rejected)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+
+        text_pos = (text_pos[0], text_pos[1] + line_height)
+        text = 'Sliding Window={}'.format(
+            self.sliding_window)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
+        text_pos = (text_pos[0], text_pos[1] + line_height)
+        text = 'Fast Fit={}'.format(
+            self.fast_fit)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_color,
+                    line_type)
