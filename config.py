@@ -33,4 +33,4 @@ class Config():
     PROBABLE_LANE_WIDTH_STDDEV = 25
     
     # Range of average lane widths to accept as a probable lane
-    PROBABLE_LANE_AVERAGE_WIDTH_RANGE = (700, 900)
+    PROBABLE_LANE_AVERAGE_WIDTH_RANGE = (750, 950)
