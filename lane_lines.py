@@ -227,6 +227,9 @@ class LaneLines():
         else:
             left_curvature = self.left_lane_line.current_radius_of_curvature
             left_line_pos = self.left_lane_line.current_line_pos
+        
+        self.diagnostics.left_curvature = left_curvature
+        self.diagnostics.right_curvature = right_curvature
 
         # visualize the current fit curve.
         self.left_lane_line.visualize_lane_current_fit(
@@ -249,30 +252,13 @@ class LaneLines():
         font_scale = 1.5
         font_color = (255, 255, 255)
         line_type = 3
-
-        left_text_pos = (20, 100)
-        if left_curvature > 15000:
-            left_text = 'Left Curve Radius=Straight'
-        else:
-            left_text = 'Left Curve Radius={:3.4f}m'.format(left_curvature)
-        cv2.putText(lane_poly,
-                    left_text,
-                    left_text_pos,
-                    font,
-                    font_scale,
-                    font_color,
-                    line_type)
-
-        right_text_pos = (20, 160)
-        # If greater than 10000m (10k) assume straight
-        if right_curvature > 10000:
-            right_text = 'Right Curve Radius=Straight'
-        else:
-            right_text = 'Right Curve Radius={:3.4f}'.format(right_curvature)
+        curvature = (right_curvature + left_curvature) / 2
+        curve_text_pos = (20, 160)
+        curve_text = 'Curve Radius={:3.4f}'.format(curvature)
 
         cv2.putText(lane_poly,
-                    right_text,
-                    right_text_pos,
+                    curve_text,
+                    curve_text_pos,
                     font,
                     font_scale,
                     font_color,
@@ -429,6 +415,7 @@ class Diagnostics():
         self.left_curvature = None
         self.right_curvature = None
 
+ 
     def write_to_image(self, img):
         """Write diagnostic info to img."""
         font = cv2.FONT_HERSHEY_SIMPLEX
