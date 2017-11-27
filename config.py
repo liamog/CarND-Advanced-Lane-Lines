@@ -15,7 +15,7 @@ class Config():
     MAX_REJECTED = 5
 
     # meters per pixel in y dimension
-    YM_PER_PIX = 30 / 720  
+    YM_PER_PIX = 35 / 720  
     
     # meters per pixel in x dimension
     # Calculated from the warped perspective transform used.
@@ -23,14 +23,14 @@ class Config():
 
     # Minimum smooth polynomial cofficients samples before 
     # switching to fast detection.
-    MIN_SMOOTH_SAMPLES = 2
+    MIN_SMOOTH_SAMPLES = 3
     
     # Maximum number of fit samples to smooth over.
-    MAX_SMOOTH_SAMPLES = 5
+    MAX_SMOOTH_SAMPLES = 8
 
     # Maximum standard deviation (in pixels) below which we
     # consider as parallel therefor a good lane detection. 
-    PROBABLE_LANE_WIDTH_STDDEV = 50
+    PROBABLE_LANE_WIDTH_STDDEV = 25
     
     # Range of average lane widths to accept as a probable lane
     PROBABLE_LANE_AVERAGE_WIDTH_RANGE = (700, 900)
