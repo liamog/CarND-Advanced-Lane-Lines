@@ -11,14 +11,14 @@ import wx
 
 import cv2
 from binary_image import BinaryImage, SourceType
-
+from perspective import Perspective
 
 class DrawFrame(wx.Frame):
 
     def __init__(self, *args, **kwargs):
         wx.Frame.__init__(self, *args, **kwargs)
         # Change as necessary
-        self.source_type = SourceType.V_CHANNEL
+        self.source_type = SourceType.Y_CHANNEL
 
         self._create_menu()
         self.create_widgets()
@@ -199,8 +199,10 @@ class DrawFrame(wx.Frame):
                           mag_threshold=self.mag_threshold,
                           dir_threshold=self.dir_threshold)
         #process the image
+        perspective = Perspective()
+        warped = perspective.process_image(self.img)
         print("Process image")
-        binary = binary_image.process_image(self.img)
+        binary = binary_image.process_image(warped)
         binary = binary * 255
         self.display_image(binary.astype(np.uint8), self.image_binary)
         color_image = binary_image.source_channel
