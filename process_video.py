@@ -44,9 +44,23 @@ def process_debug_image(img):
     return final_plus_diags
 
 count = 0
-white_output = 'test_videos_output/project_video.mp4'
-clip1 = VideoFileClip("project_video.mp4")
-# white_clip = clip1.fl_image(process_debug_image)
-# white_clip = clip1.fl_image(process_debug_image).subclip(0, 2)
-white_clip = clip1.fl_image(lanes.process_image)
-white_clip.write_videofile(white_output, audio=False)
+
+diagnostics_enabled = True
+input_base = "project_video"
+
+input_filename = input_base + ".mp4"
+output_filename = input_base + "_with_lanes.mp4"
+output_diag_filename = input_base + "_with_diagnostics.mp4"
+
+if diagnostics_enabled:
+    clip1 = VideoFileClip(input_filename)
+    clip = clip1.fl_image(process_debug_image).subclip(20,50)
+    clip.write_videofile(output_diag_filename, audio=False)
+else:
+    clip1 = VideoFileClip(input_filename)
+    clip = clip1.fl_image(lanes.process_image)
+    clip.write_videofile(output_filename, audio=False)
+
+
+
+# clip = clip1.fl_image(process_debug_image).subclip(0, 2)

@@ -9,23 +9,10 @@ import numpy as np
 
 import cv2
 from line import Line
-
+from config import Config
 
 class LaneLines():
     """The Lane Line Class."""
-    # Max number of frames to combine when searching 
-    # for lanes.
-    SMOOTH_OVER_N_FRAMES = 3
-    # Number of windows for the sliding window search
-    SEARCH_WINDOWS = 9
-    # Search window margin for both the sliding window and
-    # fast fit search.
-    MARGIN = 120
-    # If 5 frames in a row don't have a good lane match
-    # reset to sliding window search
-    MAX_REJECTED = 5
-
-
     def _init_perspective_transform_matrices(self):
         src = np.float32([[230.0, 700.0], [531.0, 495.0],
                         [762.5, 495.0], [1080.0, 700.0]])
@@ -202,7 +189,7 @@ class LaneLines():
         self._images.append(this_binary_warped)
         num_images = len(self._images)
         
-        if num_images > LaneLines.SMOOTH_OVER_N_FRAMES:
+        if num_images > Config.SMOOTH_OVER_N_FRAMES:
             # remove the oldest image
             del self._images[0]
         num_images = len(self._images)
@@ -224,7 +211,7 @@ class LaneLines():
         rightx_base = np.argmax(self.histogram[midpoint:]) + midpoint
 
         # Choose the number of sliding windows
-        nwindows = LaneLines.SEARCH_WINDOWS
+        nwindows = Config.SEARCH_WINDOWS
         # Set height of windows
         window_height = np.int(
             (self._warped_y_range[1] - self._warped_y_range[0]) / nwindows)
@@ -321,9 +308,9 @@ class LaneLines():
         nonzerox = np.array(nonzero[1])
 
         self.left_lane_line.fit_line_from_smooth(
-            nonzerox, nonzeroy, LaneLines.MARGIN, self.lane_find_visualization)
+            nonzerox, nonzeroy, Config.MARGIN, self.lane_find_visualization)
         self.right_lane_line.fit_line_from_smooth(
-            nonzerox, nonzeroy, LaneLines.MARGIN, self.lane_find_visualization)
+            nonzerox, nonzeroy, Config.MARGIN, self.lane_find_visualization)
         probable_lane, mean, sigma = \
             self.left_lane_line.probable_lane_detected(self.right_lane_line)
         self.diagnostics.average_lane_width = mean
@@ -336,7 +323,7 @@ class LaneLines():
             self.left_lane_line.add_current_fit_to_smooth()
         else:
             self._rejected += 1
-            if self._rejected > LaneLines.MAX_REJECTED:
+            if self._rejected > Config.MAX_REJECTED:
                 self._rejected = 0
                 return self._find_line_full_search()
 
@@ -351,6 +338,22 @@ class LaneLines():
 
         self.diagnostics.write_to_image(self.diagnostics_image)
 
+        if self.right_lane_line.valid:
+            right_curvature = self.right_lane_line.smooth_radius_of_curvature
+            right_line_pos = self.right_lane_line.smooth_line_pos
+        else:
+            right_curvature = self.right_lane_line.current_radius_of_curvature
+            right_line_pos = self.right_lane_line.current_line_pos
+
+        if self.left_lane_line.valid:
+            left_curvature = self.left_lane_line.smooth_radius_of_curvature
+            left_line_pos = self.left_lane_line.smooth_line_pos
+        else:
+            left_curvature = self.left_lane_line.current_radius_of_curvature
+            left_line_pos = self.left_lane_line.current_line_pos
+
+
+
         # visualize the current fit curve.
         self.left_lane_line.visualize_lane_current_fit(
             self.lane_find_visualization, color=[255, 255, 0])
@@ -360,9 +363,6 @@ class LaneLines():
             self.lane_find_visualization ,color=[255, 255, 255])
         self.right_lane_line.visualize_lane_smooth_fit(
             self.lane_find_visualization, color=[255, 255, 255])
-
-
-        # assert self.left_lane_line.line_base_pos != -1
 
         # visualize the lane as a poly fill.
         color_warp = self.left_lane_line.poly_fill_with_other_lane(
@@ -378,13 +378,10 @@ class LaneLines():
         line_type = 3
 
         left_text_pos = (20, 100)
-        if self.left_lane_line.smooth_radius_of_curvature > 15000:
-            left_text = 'Left CurRad=Straight'
+        if left_curvature > 15000:
+            left_text = 'Left Curve Radius=Straight'
         else:
-            left_text = 'Left CurRad={:3.4f}'.format(
-                self.left_lane_line.smooth_radius_of_curvature)
-        left_text += ': lane_dist={:3.4f}'.format(
-            self.left_lane_line.line_base_pos)
+            left_text = 'Left Curve Radius={:3.4f}m'.format(left_curvature)
         cv2.putText(lane_poly,
                     left_text,
                     left_text_pos,
@@ -395,13 +392,10 @@ class LaneLines():
 
         right_text_pos = (20, 160)
         # If greater than 10000m (10k) assume straight
-        if (self.right_lane_line.smooth_radius_of_curvature > 10000):
-            right_text = 'Right CurRad=Straight'
+        if right_curvature > 10000:
+            right_text = 'Right Curve Radius=Straight'
         else:
-            right_text = 'Right CurRad={:3.4f}'.format(
-                self.right_lane_line.smooth_radius_of_curvature)
-        right_text += (': lane_dist={:3.4f}'.format(
-            self.right_lane_line.line_base_pos))
+            right_text = 'Right Curve Radius={:3.4f}'.format(right_curvature)
 
         cv2.putText(lane_poly,
                     right_text,
@@ -411,9 +405,7 @@ class LaneLines():
                     font_color,
                     line_type)
 
-        center_of_lane = ((self.right_lane_line.line_base_pos - \
-                           self.left_lane_line.line_base_pos) / 2) + \
-                           self.left_lane_line.line_base_pos
+        center_of_lane = ((right_line_pos - left_line_pos) / 2) + left_line_pos
 
         signed_dist_from_center = self.left_lane_line.camera_pos - center_of_lane
         if (signed_dist_from_center > 0):
