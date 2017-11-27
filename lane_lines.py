@@ -8,136 +8,68 @@ import matplotlib.image as mpimg
 import numpy as np
 
 import cv2
-from line import Line
+from binary_image import BinaryImage, SourceType
 from config import Config
+from line import Line
+
 
 class LaneLines():
+    def __init__(self, calibration_image_path):
+        """Initializer."""
+        # Set to the image currently being processed
+        self._img = None
+        self._images = []
+        self.img_width = 0
+        self.img_height = 0
+        self.img_size = (0, 0)
+
+        # range along y that we search for lane pixels.
+        # Use to ignore noise in the distance and the car bonnet
+        self._warped_y_range = (100, 690)
+
+        self._grad_x_binary = None
+        self._grad_y_binary = None
+        self._grad_mag_binary = None
+        self._grad_dir_binary = None
+
+        # Camera Calibration support
+        self._calibration_mtx = None
+        self._calibration_dist = None
+        self._calibration_rvecs = None
+        self._calibration_tvecs = None
+
+        # Calibration images output
+        self.callibration_chess_boards = []
+
+        # Image processing
+        self._sobelx = None
+        self._sobely = None
+
+        self.current_binary_warped = None
+        self.smoot_binary_warped = None
+        self.lane_find_visualization = None
+        self.histogram = None
+        self.diagnostics_image = None
+
+        # Detected Lanes
+        self.right_lane_line = Line((720, 1280))
+        self.left_lane_line = Line((720, 1280))
+
+        # Counter for consecutive rejected lanes.
+        self._rejected = 0
+
+        self.diagnostics = Diagnostics()
+        # Initialize
+        self.binary_image_s_channel = BinaryImage(
+            calibration_image_path,
+            "thresholds_r_channel.p",
+            SourceType.R_CHANNEL)
+        self.binary_image_r_channel = BinaryImage(
+            calibration_image_path,
+            "thresholds_s_channel.p",
+            SourceType.S_CHANNEL)
+
     """The Lane Line Class."""
-    def _init_perspective_transform_matrices(self):
-        src = np.float32([[230.0, 700.0], [531.0, 495.0],
-                        [762.5, 495.0], [1080.0, 700.0]])
-        dst = np.float32([[230.0, 700.0], [230.0, 495.0], [
-                        1080.0, 495.0], [1080.0, 700.0]])
-        self._perspective_transform = cv2.getPerspectiveTransform(src, dst)
-        self._perspective_inverse = cv2.getPerspectiveTransform(dst, src)
-
-    def _calibrate_camera_from_image(self, img, num_x, num_y, objpoints, imgpoints):
-        objp = np.zeros((num_y * num_x, 3), np.float32)
-        objp[:, :2] = np.mgrid[0:num_x, 0:num_y].T.reshape(-1, 2)
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        shape = gray.shape[::-1]
-        ret, corners = cv2.findChessboardCorners(gray, (num_x, num_y), None)
-        if ret:
-            objpoints.append(objp)
-            imgpoints.append(corners)
-            img = cv2.drawChessboardCorners(img, (num_x, num_y), corners, ret)
-            self.callibration_chess_boards.append(img)
-        return shape
-
-    def _init_calibrate_camera(self, calibration_image_path):
-        if (os.path.isfile(self._calibration_filename)):
-            with open(self._calibration_filename, 'rb') as calibration_file:
-                if sys.version_info[0] < 3:
-                    calibration_data = pickle.load(calibration_file)
-                else:
-                    calibration_data = pickle.load(
-                        calibration_file, encoding='latin1')
-                self._mtx = calibration_data["mtx"]
-                self._dist = calibration_data["dist"]
-                self._rvecs = calibration_data["rvecs"]
-                self._tvecs = calibration_data["tvecs"]
-                return
-
-        num_x = int(9)
-        num_y = int(6)
-
-        objpoints = []
-        imgpoints = []
-        print(calibration_image_path)
-
-        for file in glob.glob(calibration_image_path + '/*.jpg'):
-            print(file)
-            img = mpimg.imread(file)
-            shape = self._calibrate_camera_from_image(
-                img, num_x, num_y, objpoints, imgpoints)
-
-        ret = cv2.calibrateCamera(
-            objpoints, imgpoints, shape, None, None)
-        if ret[0]:
-            print("Successfully Calibrated Camera")
-            self._mtx = ret[1]
-            self._dist = ret[2]
-            self._rvecs = ret[3]
-            self._tvecs = ret[4]
-            calibration_data = {"mtx": self._mtx,
-                                "dist": self._dist,
-                                "rvecs": self._rvecs,
-                                "tvecs": self._tvecs}
-            pickle.dump(calibration_data,
-                        open(self._calibration_filename, "wb"),
-                        protocol=2)
-        else:
-            print("Failed to Calibrate Camera")
-
-    def _build_gradients_for_source(self):
-        self._sobelx = cv2.Sobel(self.source_channel, cv2.CV_64F,
-                                 1, 0, ksize=self._sobel_x_kernel)
-        self._sobely = cv2.Sobel(self.source_channel, cv2.CV_64F,
-                                 0, 1, ksize=self._sobel_x_kernel)
-        # build X gradient
-        self._build_grad_x()
-        self._build_grad_y()
-        self._build_grad_dir()
-        self._build_grad_mag()
-
-    def _build_grad_x(self):
-        # Apply threshold
-        # Apply x gradient with the OpenCV Sobel() function
-        # and take the absolute value
-        abs_sobel = np.absolute(self._sobelx)
-        # Rescale back to 8 bit integer
-        scaled_sobel = np.uint8(255 * abs_sobel / np.max(abs_sobel))
-        # Create a copy and apply the threshold
-        self._grad_x_binary = np.zeros_like(scaled_sobel)
-        # Here I'm using inclusive (>=, <=) thresholds, but exclusive is ok too
-        self._grad_x_binary[(scaled_sobel >= self.grad_x_threshold[0]) &
-                            (scaled_sobel <= self.grad_x_threshold[1])] = 1
-
-    def _build_grad_y(self):
-        # Apply threshold
-        # Apply y gradient with the OpenCV Sobel() function
-        # and take the absolute value
-        abs_sobel = np.absolute(self._sobely)
-        # Rescale back to 8 bit integer
-        scaled_sobel = np.uint8(255 * abs_sobel / np.max(abs_sobel))
-        # Create a copy and apply the threshold
-        self._grad_y_binary = np.zeros_like(scaled_sobel)
-        # Here I'm using inclusive (>=, <=) thresholds, but exclusive is ok too
-        self._grad_y_binary[(scaled_sobel >= self.grad_y_threshold[0]) &
-                            (scaled_sobel <= self.grad_y_threshold[1])] = 1
-
-    def _build_grad_mag(self):
-        # Calculate the gradient magnitude
-        grad_mag = np.sqrt(self._sobelx**2 + self._sobely**2)
-        # Rescale to 8 bit
-        scale_factor = np.max(grad_mag) / 255
-        grad_mag = (grad_mag / scale_factor).astype(np.uint8)
-
-        # Create a binary image of ones where threshold is met, zeros otherwise
-        self._grad_mag_binary = np.zeros_like(grad_mag)
-        self._grad_mag_binary[(grad_mag >= self.mag_threshold[0]) &
-                              (grad_mag <= self.mag_threshold[1])] = 1
-
-    def _build_grad_dir(self):
-        # Grayscale
-        # Take the absolute value of the gradient direction,
-        # apply a threshold, and create a binary image result
-        abs_grad_dir = np.arctan2(np.absolute(self._sobely),
-                                  np.absolute(self._sobelx))
-        self._grad_dir_binary = np.zeros_like(abs_grad_dir)
-        self._grad_dir_binary[(abs_grad_dir >= self.dir_threshold[0]) &
-                              (abs_grad_dir <= self.dir_threshold[1])] = 1
-
     def _weighted_img(self, img, initial_img, alpha=0.8, beta=1., epsilon=0.):
         """`img` is the image to overlay on top of initial img.
 
@@ -161,49 +93,13 @@ class LaneLines():
                 points[idx + 1]), color, thickness)
         return img
 
-    def _prepare_img(self):
-        undist = cv2.undistort(self.source_img, self._mtx,
-                               self._dist, None, self._mtx)
-        self.warped = cv2.warpPerspective(undist,
-                                          self._perspective_transform,
-                                          self.img_size,
-                                          flags=cv2.INTER_LINEAR)
-        # Crop out the bottom of the image where part of the car is visible.
-        self.warped = self.warped[0:self.warped.shape[0]:, :]
-        self.hls = cv2.cvtColor(self.warped, cv2.COLOR_RGB2HLS)
-        self.s_channel = self.hls[:, :, 2]
-        self.gray = cv2.cvtColor(self.warped, cv2.COLOR_RGB2GRAY)
-        # Changes this to different sources to try different channels etc.
-
-        self.source_channel = self.s_channel
-        # Apply each of the thresholding functions
-        self._build_gradients_for_source()
-
-        this_binary_warped = np.zeros_like(self.source_channel, np.int8)
-        this_binary_warped[
-            ((self._grad_x_binary == 1) &
-             (self._grad_y_binary == 1)) |
-            ((self._grad_mag_binary == 1) &
-             (self._grad_dir_binary == 1))] = 1
-        # Smooth the lines by merging the last n frames
-        self._images.append(this_binary_warped)
-        num_images = len(self._images)
-        
-        if num_images > Config.SMOOTH_OVER_N_FRAMES:
-            # remove the oldest image
-            del self._images[0]
-        num_images = len(self._images)
-
-        # merge binary image with previous images.
-        self.binary_warped = np.zeros_like(self.source_channel, np.int8)
-        for img in self._images:
-            self.binary_warped[(self.binary_warped == 1) | (img == 1)] = 1 
-
     def _find_line_full_search(self):
         # mask top of warped image to remove noise
         self.diagnostics.sliding_window = True
         self.histogram = np.sum(
-            self.binary_warped[self.binary_warped.shape[0] // 2:, :], axis=0)
+            self.smooth_binary_warped[
+                    self.smooth_binary_warped.shape[0] // 2:, :
+                ], axis=0)
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
         midpoint = np.int(self.histogram.shape[0] / 2)
@@ -216,7 +112,7 @@ class LaneLines():
         window_height = np.int(
             (self._warped_y_range[1] - self._warped_y_range[0]) / nwindows)
         # Identify the x and y positions of all nonzero pixels in the image
-        nonzero = self.binary_warped.nonzero()
+        nonzero = self.smooth_binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
         # Current positions to be updated for each window
@@ -303,7 +199,7 @@ class LaneLines():
 
     def _find_lines_from_smooth(self):
         self.diagnostics.fast_fit = True
-        nonzero = self.binary_warped.nonzero()
+        nonzero = self.smooth_binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
 
@@ -370,7 +266,9 @@ class LaneLines():
         # Warp the blank back to original image space
         # using inverse perspective matrix
         lane_poly = cv2.warpPerspective(
-            color_warp, self._perspective_inverse, (self.img_size))
+            color_warp, 
+            self.binary_image_s_channel.perspective_inverse, 
+            (self.img_size))
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1.5
@@ -467,11 +365,7 @@ class LaneLines():
                 self.dir_threshold = config["dir_threshold"]
 
     def clear_images(self):
-        self.gray = None
-        self.source_channel = None
-
-        self.warped = None
-        self.binary_warped = None
+        self.smooth_binary_warped = None
         self.lane_find_visualization = None
         self.diagnostics_image = None
         self.histogram = None
@@ -486,9 +380,30 @@ class LaneLines():
         self.img_height = img.shape[0]
         self.img_size = (self.img_width, self.img_height)
 
-        self._prepare_img()
+        r_binary = self.binary_image_r_channel.prepare_img(img)
+        s_binary = self.binary_image_s_channel.prepare_img(img)
+        
+        # Merge r_binary and s_binary
+        self.current_binary_warped = np.zeros_like(r_binary, np.int8)
+        self.current_binary_warped[(r_binary == 1) | (s_binary == 1)] = 1
 
-        single_channel = self.binary_warped * 255
+        # Smooth the lines by merging the last n frames
+        self._images.append(self.current_binary_warped)
+        num_images = len(self._images)
+
+        if num_images > Config.SMOOTH_OVER_N_FRAMES:
+            # remove the oldest image
+            del self._images[0]
+        num_images = len(self._images)
+
+        # merge binary image with previous images.
+        self.smooth_binary_warped = np.zeros_like(self.current_binary_warped, 
+                                                  np.int8)
+        for binary_img in self._images:
+            self.smooth_binary_warped[(self.smooth_binary_warped == 1) |
+                               (binary_img == 1)] = 1
+
+        single_channel = self.smooth_binary_warped * 255
         self.lane_find_visualization = np.dstack(
             (single_channel,
              single_channel,
@@ -497,89 +412,14 @@ class LaneLines():
             self.lane_find_visualization)
 
         # mask top of warped image to remove noise
-        self.binary_warped[0:self._warped_y_range[0]:1, ::] = 0
+        self.smooth_binary_warped[0:self._warped_y_range[0]:1, ::] = 0
         # mask bottom of warped image to remove noise
-        self.binary_warped[self._warped_y_range[1]:self.binary_warped.shape[0] - 1:1, ::] = 0
+        self.smooth_binary_warped[self._warped_y_range[1]:self.smooth_binary_warped.shape[0] - 1:1, ::] = 0
         if (not self.right_lane_line.valid or
                 not self.left_lane_line.valid):
             return self._find_line_full_search()
         else:
             return self._find_lines_from_smooth()
-
-    def __init__(self, calibration_image_path):
-        """Initializer."""
-        # Configuration file to store threshold settings.
-        self._thresholds_file_name = "thresholds.p"
-        # cache file to store camera calibration data.
-        self._calibration_filename = "calibration_data.p"
-
-        # Set to the image currently being processed
-        self._img = None
-        self._images = []
-        self.img_width = 0
-        self.img_height = 0
-        self.img_size = (0,0)
-        
-        # perspective transform matrix
-        self._perspective_transform = None
-
-        # perspective transform inverse matrix
-        self._perspective_inverse = None
-
-        # threshold values for the gradient in the X direction
-        self.grad_x_threshold = (0, 0)
-        self._sobel_x_kernel = 9
-        # threshold values for the gradient in the Y direction
-        self.grad_y_threshold = (0, 0)
-        self._sobel_y_kernel = 9
-
-        # threshold values for the gradient magnitude
-        self.mag_threshold = (0, 0)
-        # threshold values for the gradient direction in rads
-        self.dir_threshold = (0.0, 0.0)
-
-        # range along y that we search for lane pixels.
-        # Use to ignore noise in the distance and the car bonnet
-        self._warped_y_range = (100, 690)
-
-        self._grad_x_binary = None
-        self._grad_y_binary = None
-        self._grad_mag_binary = None
-        self._grad_dir_binary = None
-
-        # Camera Calibration support
-        self._calibration_mtx = None
-        self._calibration_dist = None
-        self._calibration_rvecs = None
-        self._calibration_tvecs = None
-
-        # Calibration images output
-        self.callibration_chess_boards = []
-
-        # Image processing
-        self._sobelx = None
-        self._sobely = None
-
-        self.gray = None
-        self.source_channel = None
-        self.warped = None
-        self.binary_warped = None
-        self.lane_find_visualization = None
-        self.histogram = None
-        self.diagnostics_image = None
- 
-        # Detected Lanes
-        self.right_lane_line = Line((720, 1280))
-        self.left_lane_line = Line((720, 1280))
-
-        # Counter for consequetive rejected lanes.  
-        self._rejected = 0 
-
-        self.diagnostics = Diagnostics()
-        # Initialize
-        self._init_perspective_transform_matrices()
-        self._init_calibrate_camera(calibration_image_path)
-        self.load_thresholds()
 
 
 class Diagnostics():

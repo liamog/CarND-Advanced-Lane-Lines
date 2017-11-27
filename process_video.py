@@ -28,24 +28,42 @@ lanes = LaneLines('camera_cal')
 def process_debug_image(img):
     global lanes
     final = lanes.process_image(img)
-    size = np.shape(lanes.lane_find_visualization)
+    size = np.shape(img)
     size = (int(size[0] / 2), int(size[1] / 2))
-    lfv = scipy.misc.imresize(lanes.lane_find_visualization, size)
-    bw = zoom(lanes.binary_warped * 255, 0.5)
-    bw = np.dstack((bw, bw, bw))
-    sc = zoom(lanes.source_channel, 0.5)
-    sc = np.dstack((sc, sc, sc))
-    ldqi = scipy.misc.imresize(lanes.diagnostics_image, size)
 
-    diags_r1 = np.hstack((lfv, bw))
-    diags_r2 = np.hstack((ldqi, sc))
-    diags = np.vstack((diags_r1, diags_r2))
-    final_plus_diags = np.hstack((final, diags))
+    rc = scipy.misc.imresize(lanes.binary_image_r_channel.source_channel, size)
+    rc = np.dstack((rc, rc, rc))
+    rcb = scipy.misc.imresize(lanes.binary_image_r_channel.binary_warped, size)
+    rcb = np.dstack((rcb, rcb, rcb))
+
+    sc = scipy.misc.imresize(lanes.binary_image_s_channel.source_channel, size)
+    sc = np.dstack((sc, sc, sc))
+    scb = scipy.misc.imresize(lanes.binary_image_s_channel.binary_warped, size)
+    scb = np.dstack((scb, scb, scb))
+
+    lfv = scipy.misc.imresize(lanes.lane_find_visualization, size)
+
+    sbw = scipy.misc.imresize(lanes.smooth_binary_warped * 255, size)
+    sbw = np.dstack((sbw, sbw, sbw))
+    cbw = scipy.misc.imresize(lanes.current_binary_warped * 255, size)
+    cbw = np.dstack((cbw, cbw, cbw))
+
+    di = scipy.misc.imresize(lanes.diagnostics_image, size)
+
+    diags_1_r1 = np.hstack((rc, sc))
+    diags_1_r2 = np.hstack((rcb, scb))
+    diags_1 = np.vstack((diags_1_r1, diags_1_r2))
+
+    diags_2_r1 = np.hstack((cbw, lfv))
+    diags_2_r2 = np.hstack((sbw, di))
+    diags_2 = np.vstack((diags_2_r1, diags_2_r2))
+
+    final_plus_diags = np.hstack((final, diags_1, diags_2))
     return final_plus_diags
 
 count = 0
 
-diagnostics_enabled = True
+diagnostics_enabled = False
 input_base = "project_video"
 
 input_filename = input_base + ".mp4"
@@ -54,7 +72,7 @@ output_diag_filename = input_base + "_with_diagnostics.mp4"
 
 if diagnostics_enabled:
     clip1 = VideoFileClip(input_filename)
-    clip = clip1.fl_image(process_debug_image).subclip(20,50)
+    clip = clip1.fl_image(process_debug_image)
     clip.write_videofile(output_diag_filename, audio=False)
 else:
     clip1 = VideoFileClip(input_filename)

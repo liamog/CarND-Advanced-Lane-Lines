@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from lane_lines import LaneLines
 
-files = glob.glob('project_video_imgs/*.jpg')
+files = glob.glob('project_video_imgs/*784.jpg')
 files.sort()
 lanes = LaneLines('camera_cal')
 count = 0
