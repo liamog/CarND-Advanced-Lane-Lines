@@ -1,3 +1,4 @@
+"""Binary Image module."""
 import os.path
 import pickle
 import sys
@@ -9,13 +10,22 @@ import cv2
 
 
 class SourceType(Enum):
+    """Type of color conversion to use."""
+
     S_CHANNEL = 1
     R_CHANNEL = 2
     GRAY = 3
- 
-class BinaryImage():
-    def __init__(self, calibration_image_path, thresholds_file, source_type):
 
+
+class BinaryImage():
+    """
+    BinaryImage class.
+
+    Manages color conversion and binary thresholding for the input image.
+    """
+
+    def __init__(self, calibration_image_path, thresholds_file, source_type):
+        """Initializer."""
         # threshold values for the gradient in the X direction
         self.grad_x_threshold = (0, 0)
         self._sobel_x_kernel = 9
@@ -41,7 +51,7 @@ class BinaryImage():
         self._source_type = source_type
 
     def load_thresholds(self, thresholds_file):
-        '''Loads previously saved threshold configuration.'''
+        """Load previously saved threshold configuration."""
         if os.path.exists(thresholds_file):
             with open(thresholds_file, 'rb') as config_file:
                 if sys.version_info[0] < 3:
@@ -53,8 +63,6 @@ class BinaryImage():
                 self.grad_y_threshold = config["grad_y_threshold"]
                 self.mag_threshold = config["mag_threshold"]
                 self.dir_threshold = config["dir_threshold"]
-
-
 
     def _build_gradients_for_source(self):
         self._sobelx = cv2.Sobel(self.source_channel, cv2.CV_64F,
@@ -116,6 +124,7 @@ class BinaryImage():
                               (abs_grad_dir <= self.dir_threshold[1])] = 1
 
     def process_image(self, img):
+        """Process the image returning binary image with thresholds applied."""
         incoming_image = np.copy(img)
         # Crop out the bottom of the image where part of the car is visible.
         incoming_image = incoming_image[0:incoming_image.shape[0]:, :]

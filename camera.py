@@ -1,15 +1,20 @@
+"""Camera calibration."""
 import glob
 import os.path
 import pickle
 import sys
 
+import matplotlib.image as mpimg
 import numpy as np
 
 import cv2
 
 
 class Camera():
+    """Camera calibration class."""
+
     def __init__(self, calibration_image_path):
+        """Initializer."""
         # cache file to store camera calibration data.
         self._calibration_filename = "calibration_data.p"
 
@@ -24,9 +29,9 @@ class Camera():
         self._init_calibrate_camera(calibration_image_path)
 
     def process_image(self, img):
+        """Process the image."""
         return cv2.undistort(img, self._mtx,
                              self._dist, None, self._mtx)
-
 
     def _calibrate_camera_from_image(self,
                                      img,

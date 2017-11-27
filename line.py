@@ -6,13 +6,12 @@ import cv2
 
 from config import Config
 
+
 class Line():
     """Line class captures line as a polynomial."""
 
-
     def __init__(self, shape):
         """Line class Initializer."""
-
         # polynomial coefficients smoothed over the last n iterations
         self.smooth_fit = None
         # radius of curvature from the smooth fit.
@@ -22,7 +21,7 @@ class Line():
         self.smooth_line_pos = -1.0
 
         # samples used to calculate the smooth fit.
-        self.smooth_fit_samples = np.empty((0,3), dtype='float')
+        self.smooth_fit_samples = np.empty((0, 3), dtype='float')
 
         # polynomial coefficients for the most recent fit
         self.current_fit = None
@@ -46,6 +45,7 @@ class Line():
         self.camera_pos = (self.shape[1] / 2) * Config.XM_PER_PIX
 
     def reset(self):
+        """Reset all values in the line class."""
         self.valid = False
         self.smooth_fit_samples = np.empty((0, 3), dtype='float')
         self.smooth_fit = None
@@ -78,10 +78,10 @@ class Line():
                             fitx.astype(np.float) * Config.XM_PER_PIX, 2)
 
         return ((1 + (2 * fit_cr[0] * y_eval + fit_cr[1])**2)**1.5) / \
-                 np.absolute(2 * fit_cr[0])
+            np.absolute(2 * fit_cr[0])
 
     def _calculate_current_curvature(self):
-        fitx, fity = self.get_current_fitted_for_shape (self.shape)
+        fitx, fity = self.get_current_fitted_for_shape(self.shape)
 
         # Workaround for python2
         if sys.version_info[0] < 3:
@@ -89,8 +89,14 @@ class Line():
         # fit for max y
         self.current_line_pos = self._calc_center_offset(fitx)
         self.current_radius_of_curvature = self._calc_curvature(fitx, fity)
-    
-    def add_current_fit_to_smooth(self): 
+
+    def add_current_fit_to_smooth(self):
+        """
+        Add current fit to smooth sample.
+
+        Add the current fitted polynomial coefficients to
+        the smooth sample set.
+        """
         self.smooth_fit_samples = np.insert(
             self.smooth_fit_samples, 0, self.current_fit, axis=0)
         num_samples = np.shape(self.smooth_fit_samples)[0]
@@ -119,7 +125,6 @@ class Line():
 
         First filtered by the current bestfit line + margin
         """
-
         # Draw the search space onto the image
         ploty = np.linspace(
             0, window_img.shape[0] - 1, window_img.shape[0])
@@ -140,7 +145,7 @@ class Line():
                              self.smooth_fit[1] * nonzeroy +
                              self.smooth_fit[2] + margin)))
 
-        return self.fit_line(nonzerox[inds],nonzeroy[inds])
+        return self.fit_line(nonzerox[inds], nonzeroy[inds])
 
     def visualize_lane_current_fit(self, img, color=[255, 255, 0]):
         """Draw the center of the latest fitted lane line on img."""
@@ -159,7 +164,7 @@ class Line():
 
     def visualize_lane_smooth_fit(self, img, color=[255, 255, 0]):
         """Draw the center of the average fitted lane line on img."""
-        if (self.smooth_fit is None) : 
+        if (self.smooth_fit is None):
             return
         ploty = np.linspace(
             0, img.shape[0] - 1, img.shape[0])
@@ -186,17 +191,19 @@ class Line():
 
     def probable_lane_detected(self, other):
         """
-        Returns True if the current_fit for both lanes are mostly parallel
+        Check for probable lane pair.
+
+        Return True if the current_fit for both lanes are mostly parallel
         and appropriately spaced.
-            :param self: 
+
+            :param self:
             :param other: other lane to compare with
         """
-        
         this_x, this_y = self.get_current_fitted_for_shape(self.shape)
         other_x, other_y = other.get_current_fitted_for_shape(other.shape)
         # We would expect each width to be within a certain range.
         diff_along_y = other_x - this_x
-        # Take the average over bottom 75% of the image 
+        # Take the average over bottom 75% of the image
         diff_along_y = diff_along_y[-int(self.shape[0] * .75):]
         mean = np.mean(diff_along_y)
         sigma = np.std(diff_along_y)
@@ -210,16 +217,19 @@ class Line():
         """Fill the area between lanes and return as a new image."""
         channel = np.zeros(self.shape).astype(np.uint8)
         img = np.dstack((channel, channel, channel))
-        if self.smooth_fit is None :
-            this_fitx, this_ploty = self.get_current_fitted_for_shape(self.shape)
+        if self.smooth_fit is None:
+            this_fitx, this_ploty = self.get_current_fitted_for_shape(
+                self.shape)
         else:
-            this_fitx, this_ploty = self.get_smooth_fitted_for_shape(self.shape)
+            this_fitx, this_ploty = self.get_smooth_fitted_for_shape(
+                self.shape)
 
         if other.smooth_fit is None:
             other_fitx, other_ploty = other.get_current_fitted_for_shape(
                 self.shape)
         else:
-            other_fitx, other_ploty = other.get_smooth_fitted_for_shape(self.shape)
+            other_fitx, other_ploty = other.get_smooth_fitted_for_shape(
+                self.shape)
 
         # Recast the x and y points into usable format for cv2.fillPoly()
         pts_this = np.array([

@@ -1,10 +1,8 @@
 """Lane Line Module. c Liam O'Gorman."""
-import glob
 import os.path
 import pickle
 import sys
 
-import matplotlib.image as mpimg
 import numpy as np
 
 import cv2
@@ -30,7 +28,6 @@ class LaneLines():
         # range along y that we search for lane pixels.
         # Use to ignore noise in the distance and the car bonnet
         self._warped_y_range = (100, 690)
-
 
         # Image processing
         self._sobelx = None
@@ -62,7 +59,6 @@ class LaneLines():
             "thresholds_s_channel.p",
             SourceType.S_CHANNEL)
 
-
     def _draw_lines_between_points(self,
                                    shape,
                                    points,
@@ -80,8 +76,8 @@ class LaneLines():
         self.diagnostics.sliding_window = True
         self.histogram = np.sum(
             self.smooth_binary_warped[
-                    self.smooth_binary_warped.shape[0] // 2:, :
-                ], axis=0)
+                self.smooth_binary_warped.shape[0] // 2:, :
+            ], axis=0)
         # Find the peak of the left and right halves of the histogram
         # These will be the starting point for the left and right lines
         midpoint = np.int(self.histogram.shape[0] / 2)
@@ -167,7 +163,8 @@ class LaneLines():
             # Sanity check the current fit, if looks reasonable then
             # add to the smooth fit.
             probable_lane, mean, sigma = \
-                self.left_lane_line.probable_lane_detected(self.right_lane_line)
+                self.left_lane_line.probable_lane_detected(
+                    self.right_lane_line)
             self.diagnostics.average_lane_width = mean
             self.diagnostics.lane_width_stddev = sigma
             self.diagnostics.rejected = not probable_lane
@@ -176,7 +173,7 @@ class LaneLines():
                 self.diagnostics_image
                 self.right_lane_line.add_current_fit_to_smooth()
                 self.left_lane_line.add_current_fit_to_smooth()
-            
+
         return self._visualize_lanes()
 
     def _find_lines_from_smooth(self):
@@ -194,7 +191,7 @@ class LaneLines():
         self.diagnostics.average_lane_width = mean
         self.diagnostics.lane_width_stddev = sigma
         self.diagnostics.rejected = not probable_lane
-            
+
         if probable_lane:
             self._rejected = 0
             self.right_lane_line.add_current_fit_to_smooth()
@@ -236,7 +233,7 @@ class LaneLines():
         self.right_lane_line.visualize_lane_current_fit(
             self.lane_find_visualization, color=[255, 255, 0])
         self.left_lane_line.visualize_lane_smooth_fit(
-            self.lane_find_visualization ,color=[255, 255, 255])
+            self.lane_find_visualization, color=[255, 255, 255])
         self.right_lane_line.visualize_lane_smooth_fit(
             self.lane_find_visualization, color=[255, 255, 255])
 
@@ -282,7 +279,8 @@ class LaneLines():
 
         center_of_lane = ((right_line_pos - left_line_pos) / 2) + left_line_pos
 
-        signed_dist_from_center = self.left_lane_line.camera_pos - center_of_lane
+        signed_dist_from_center = self.left_lane_line.camera_pos -\
+            center_of_lane
         if (signed_dist_from_center > 0):
             side = "Right"
         else:
@@ -312,13 +310,14 @@ class LaneLines():
                        grad_y_threshold,
                        mag_threshold,
                        dir_threshold):
+        """Set threshold configuration."""
         self.grad_x_threshold = grad_x_threshold
         self.grad_y_threshold = grad_y_threshold
         self.mag_threshold = mag_threshold
         self.dir_threshold = dir_threshold
 
     def save_thresholds(self):
-        '''Save threshold configuration.'''
+        """Save threshold configuration."""
         config = {
             "grad_x_threshold": self.grad_x_threshold,
             "grad_y_threshold": self.grad_y_threshold,
@@ -328,7 +327,7 @@ class LaneLines():
         pickle.dump(config, open(self._thresholds_file_name, "wb"))
 
     def load_thresholds(self):
-        '''Loads previously saved threshold configuration.'''
+        """Load previously saved threshold configuration."""
         if os.path.exists(self._thresholds_file_name):
             with open(self._thresholds_file_name, 'rb') as config_file:
                 if sys.version_info[0] < 3:
@@ -342,6 +341,7 @@ class LaneLines():
                 self.dir_threshold = config["dir_threshold"]
 
     def clear_images(self):
+        """Clear the images."""
         self.smooth_binary_warped = None
         self.lane_find_visualization = None
         self.diagnostics_image = None
@@ -349,7 +349,6 @@ class LaneLines():
 
     def process_image(self, img):
         """Process image and return image with Lane Line drawn."""
-
         self.diagnostics.frame_number += 1
         self.clear_images()
         self.source_img = img
@@ -360,13 +359,13 @@ class LaneLines():
         # Pipeline
         # 1. Undistort
         undistored = self.camera.process_image(img)
-        # 2. Warp 
+        # 2. Warp
         warped = self.perspective.process_image(undistored)
         # 3. Red channel binary image
         r_binary = self.binary_image_r_channel.process_image(warped)
         # 4. Saturation channel binary image
         s_binary = self.binary_image_s_channel.process_image(warped)
-        
+
         # Merge r_binary and s_binary
         self.current_binary_warped = np.zeros_like(r_binary, np.int8)
         self.current_binary_warped[(r_binary == 1) | (s_binary == 1)] = 1
@@ -381,11 +380,11 @@ class LaneLines():
         num_images = len(self._images)
 
         # merge binary image with previous images.
-        self.smooth_binary_warped = np.zeros_like(self.current_binary_warped, 
+        self.smooth_binary_warped = np.zeros_like(self.current_binary_warped,
                                                   np.int8)
         for binary_img in self._images:
             self.smooth_binary_warped[(self.smooth_binary_warped == 1) |
-                               (binary_img == 1)] = 1
+                                      (binary_img == 1)] = 1
 
         single_channel = self.smooth_binary_warped * 255
         self.lane_find_visualization = np.dstack(
@@ -398,7 +397,9 @@ class LaneLines():
         # mask top of warped image to remove noise
         self.smooth_binary_warped[0:self._warped_y_range[0]:1, ::] = 0
         # mask bottom of warped image to remove noise
-        self.smooth_binary_warped[self._warped_y_range[1]:self.smooth_binary_warped.shape[0] - 1:1, ::] = 0
+        self.smooth_binary_warped[self._warped_y_range[1]:
+                                  self.smooth_binary_warped.shape[0] - 1:
+                                  1, ::] = 0
         if (not self.right_lane_line.valid or
                 not self.left_lane_line.valid):
             return self._find_line_full_search()
@@ -407,7 +408,10 @@ class LaneLines():
 
 
 class Diagnostics():
+    """Diagnostic helper class."""
+
     def __init__(self):
+        """Initializer."""
         self.frame_number = 0
         self.average_lane_width = None
         self.lane_width_stddev = None
@@ -416,6 +420,7 @@ class Diagnostics():
         self.fast_fit = None
 
     def write_to_image(self, img):
+        """Write diagnostic info to img."""
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1.5
         font_color = (255, 255, 255)
