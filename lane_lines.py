@@ -27,11 +27,6 @@ class LaneLines():
         # Use to ignore noise in the distance and the car bonnet
         self._warped_y_range = (100, 690)
 
-        self._grad_x_binary = None
-        self._grad_y_binary = None
-        self._grad_mag_binary = None
-        self._grad_dir_binary = None
-
         # Camera Calibration support
         self._calibration_mtx = None
         self._calibration_dist = None

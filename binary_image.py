@@ -39,6 +39,13 @@ class BinaryImage():
         self.mag_threshold = (0, 0)
         # threshold values for the gradient direction in rads
         self.dir_threshold = (0.0, 0.0)
+
+        # intermediate binary images
+        self._grad_x_binary = None
+        self._grad_y_binary = None
+        self._grad_mag_binary = None
+        self._grad_dir_binary = None
+
         # binary image after processing.
         self.binary_warped = None
 
