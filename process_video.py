@@ -33,12 +33,14 @@ def process_debug_image(img):
 
     rc = scipy.misc.imresize(lanes.binary_image_r_channel.source_channel, size)
     rc = np.dstack((rc, rc, rc))
-    rcb = scipy.misc.imresize(lanes.binary_image_r_channel.binary_warped, size)
+    rcb = scipy.misc.imresize(
+        lanes.binary_image_r_channel.processed_image, size)
     rcb = np.dstack((rcb, rcb, rcb))
 
     sc = scipy.misc.imresize(lanes.binary_image_s_channel.source_channel, size)
     sc = np.dstack((sc, sc, sc))
-    scb = scipy.misc.imresize(lanes.binary_image_s_channel.binary_warped, size)
+    scb = scipy.misc.imresize(
+        lanes.binary_image_s_channel.processed_image, size)
     scb = np.dstack((scb, scb, scb))
 
     lfv = scipy.misc.imresize(lanes.lane_find_visualization, size)
@@ -64,9 +66,10 @@ def process_debug_image(img):
 count = 0
 
 diagnostics_enabled = True
-input_base = "harder_challenge_video"
+regular_enabled = True
+# input_base = "harder_challenge_video"
 # input_base = "challenge_video"
-# input_base = "project_video"
+input_base = "project_video"
 
 input_filename = input_base + ".mp4"
 output_filename = input_base + "_with_lanes.mp4"
@@ -76,7 +79,8 @@ if diagnostics_enabled:
     clip1 = VideoFileClip(input_filename)
     clip = clip1.fl_image(process_debug_image)
     clip.write_videofile(output_diag_filename, audio=False)
-else:
+
+if regular_enabled:
     clip1 = VideoFileClip(input_filename)
     clip = clip1.fl_image(lanes.process_image)
     clip.write_videofile(output_filename, audio=False)

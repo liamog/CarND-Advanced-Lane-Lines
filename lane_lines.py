@@ -9,11 +9,15 @@ import numpy as np
 
 import cv2
 from binary_image import BinaryImage, SourceType
+from camera import Camera
 from config import Config
 from line import Line
+from perspective import Perspective
 
 
 class LaneLines():
+    """The Lane Line Class."""
+
     def __init__(self, calibration_image_path):
         """Initializer."""
         # Set to the image currently being processed
@@ -27,14 +31,6 @@ class LaneLines():
         # Use to ignore noise in the distance and the car bonnet
         self._warped_y_range = (100, 690)
 
-        # Camera Calibration support
-        self._calibration_mtx = None
-        self._calibration_dist = None
-        self._calibration_rvecs = None
-        self._calibration_tvecs = None
-
-        # Calibration images output
-        self.callibration_chess_boards = []
 
         # Image processing
         self._sobelx = None
@@ -53,6 +49,8 @@ class LaneLines():
         # Counter for consecutive rejected lanes.
         self._rejected = 0
 
+        self.camera = Camera(calibration_image_path)
+        self.perspective = Perspective()
         self.diagnostics = Diagnostics()
         # Initialize
         self.binary_image_s_channel = BinaryImage(
@@ -64,17 +62,6 @@ class LaneLines():
             "thresholds_s_channel.p",
             SourceType.S_CHANNEL)
 
-    """The Lane Line Class."""
-    def _weighted_img(self, img, initial_img, alpha=0.8, beta=1., epsilon=0.):
-        """`img` is the image to overlay on top of initial img.
-
-        `initial_img` should be the image before anum_y processing.
-        The result image is computed as follows:
-
-        initial_img * alpha + img * beta + epsilon
-        NOTE: initial_img and img must be the same shape!
-        """
-        return cv2.addWeighted(initial_img, alpha, img, beta, epsilon)
 
     def _draw_lines_between_points(self,
                                    shape,
@@ -243,8 +230,6 @@ class LaneLines():
             left_curvature = self.left_lane_line.current_radius_of_curvature
             left_line_pos = self.left_lane_line.current_line_pos
 
-
-
         # visualize the current fit curve.
         self.left_lane_line.visualize_lane_current_fit(
             self.lane_find_visualization, color=[255, 255, 0])
@@ -260,10 +245,7 @@ class LaneLines():
             self.right_lane_line)
         # Warp the blank back to original image space
         # using inverse perspective matrix
-        lane_poly = cv2.warpPerspective(
-            color_warp, 
-            self.binary_image_s_channel.perspective_inverse, 
-            (self.img_size))
+        lane_poly = self.perspective.process_image_inverse(color_warp)
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1.5
@@ -375,8 +357,15 @@ class LaneLines():
         self.img_height = img.shape[0]
         self.img_size = (self.img_width, self.img_height)
 
-        r_binary = self.binary_image_r_channel.prepare_img(img)
-        s_binary = self.binary_image_s_channel.prepare_img(img)
+        # Pipeline
+        # 1. Undistort
+        undistored = self.camera.process_image(img)
+        # 2. Warp 
+        warped = self.perspective.process_image(undistored)
+        # 3. Red channel binary image
+        r_binary = self.binary_image_r_channel.process_image(warped)
+        # 4. Saturation channel binary image
+        s_binary = self.binary_image_s_channel.process_image(warped)
         
         # Merge r_binary and s_binary
         self.current_binary_warped = np.zeros_like(r_binary, np.int8)
