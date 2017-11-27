@@ -55,10 +55,10 @@ class LaneLines():
         self.perspective = Perspective()
         self.diagnostics = Diagnostics()
         # Initialize
-        self.binary_image_s_channel = BinaryImage(
-            SourceType.R_CHANNEL)
-        self.binary_image_r_channel = BinaryImage(
-            SourceType.S_CHANNEL)
+        self.binary_image_y_channel = BinaryImage(
+            SourceType.Y_CHANNEL)
+        self.binary_image_v_channel = BinaryImage(
+            SourceType.V_CHANNEL)
 
     def _draw_lines_between_points(self,
                                    shape,
@@ -320,16 +320,16 @@ class LaneLines():
         size = np.shape(img)
         size = (int(size[0] / 2), int(size[1] / 2))
 
-        rc = scipy.misc.imresize(self.binary_image_r_channel.source_channel, size)
+        rc = scipy.misc.imresize(self.binary_image_v_channel.source_channel, size)
         rc = np.dstack((rc, rc, rc))
         rcb = scipy.misc.imresize(
-            self.binary_image_r_channel.processed_image, size)
+            self.binary_image_v_channel.processed_image, size)
         rcb = np.dstack((rcb, rcb, rcb))
 
-        sc = scipy.misc.imresize(self.binary_image_s_channel.source_channel, size)
+        sc = scipy.misc.imresize(self.binary_image_y_channel.source_channel, size)
         sc = np.dstack((sc, sc, sc))
         scb = scipy.misc.imresize(
-            self.binary_image_s_channel.processed_image, size)
+            self.binary_image_y_channel.processed_image, size)
         scb = np.dstack((scb, scb, scb))
 
         lfv = scipy.misc.imresize(self.lane_find_visualization, size)
@@ -368,9 +368,9 @@ class LaneLines():
         # 2. Warp
         warped = self.perspective.process_image(undistored)
         # 3. Red channel binary image
-        r_binary = self.binary_image_r_channel.process_image(warped)
+        r_binary = self.binary_image_v_channel.process_image(warped)
         # 4. Saturation channel binary image
-        s_binary = self.binary_image_s_channel.process_image(warped)
+        s_binary = self.binary_image_y_channel.process_image(warped)
 
         # Merge r_binary and s_binary
         self.current_binary_warped = np.zeros_like(r_binary, np.int8)
@@ -426,6 +426,8 @@ class Diagnostics():
         self.rejected = None
         self.sliding_window = None
         self.fast_fit = None
+        self.left_curvature = None
+        self.right_curvature = None
 
     def write_to_image(self, img):
         """Write diagnostic info to img."""
