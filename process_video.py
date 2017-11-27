@@ -63,8 +63,10 @@ def process_debug_image(img):
 
 count = 0
 
-diagnostics_enabled = False
-input_base = "project_video"
+diagnostics_enabled = True
+input_base = "harder_challenge_video"
+# input_base = "challenge_video"
+# input_base = "project_video"
 
 input_filename = input_base + ".mp4"
 output_filename = input_base + "_with_lanes.mp4"
