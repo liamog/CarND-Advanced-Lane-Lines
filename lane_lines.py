@@ -39,7 +39,7 @@ class LaneLines():
         self._sobely = None
 
         self.current_binary_warped = None
-        self.smoot_binary_warped = None
+        self.smooth_binary_warped = None
         self.lane_find_visualization = None
         self.histogram = None
         self.diagnostics_image = None
@@ -56,12 +56,8 @@ class LaneLines():
         self.diagnostics = Diagnostics()
         # Initialize
         self.binary_image_s_channel = BinaryImage(
-            calibration_image_path,
-            "thresholds_r_channel.p",
             SourceType.R_CHANNEL)
         self.binary_image_r_channel = BinaryImage(
-            calibration_image_path,
-            "thresholds_s_channel.p",
             SourceType.S_CHANNEL)
 
     def _draw_lines_between_points(self,
@@ -310,41 +306,7 @@ class LaneLines():
         # Combine the result with the original image
         return cv2.addWeighted(self.source_img, 1, lane_poly, 0.3, 0)
 
-    def set_thresholds(self,
-                       grad_x_threshold,
-                       grad_y_threshold,
-                       mag_threshold,
-                       dir_threshold):
-        """Set threshold configuration."""
-        self.grad_x_threshold = grad_x_threshold
-        self.grad_y_threshold = grad_y_threshold
-        self.mag_threshold = mag_threshold
-        self.dir_threshold = dir_threshold
-
-    def save_thresholds(self):
-        """Save threshold configuration."""
-        config = {
-            "grad_x_threshold": self.grad_x_threshold,
-            "grad_y_threshold": self.grad_y_threshold,
-            "mag_threshold": self.mag_threshold,
-            "dir_threshold": self.dir_threshold,
-        }
-        pickle.dump(config, open(self._thresholds_file_name, "wb"))
-
-    def load_thresholds(self):
-        """Load previously saved threshold configuration."""
-        if os.path.exists(self._thresholds_file_name):
-            with open(self._thresholds_file_name, 'rb') as config_file:
-                if sys.version_info[0] < 3:
-                    config = pickle.load(config_file)
-                else:
-                    config = pickle.load(config_file, encoding='latin1')
-
-                self.grad_x_threshold = config["grad_x_threshold"]
-                self.grad_y_threshold = config["grad_y_threshold"]
-                self.mag_threshold = config["mag_threshold"]
-                self.dir_threshold = config["dir_threshold"]
-
+  
     def clear_images(self):
         """Clear the images."""
         self.smooth_binary_warped = None

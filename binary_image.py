@@ -15,6 +15,8 @@ class SourceType(Enum):
     S_CHANNEL = 1
     R_CHANNEL = 2
     GRAY = 3
+    Y_CHANNEL = 4
+    V_CHANNEL = 5
 
 
 class BinaryImage():
@@ -24,7 +26,7 @@ class BinaryImage():
     Manages color conversion and binary thresholding for the input image.
     """
 
-    def __init__(self, calibration_image_path, thresholds_file, source_type):
+    def __init__(self, source_type):
         """Initializer."""
         # threshold values for the gradient in the X direction
         self.grad_x_threshold = (0, 0)
@@ -46,23 +48,8 @@ class BinaryImage():
 
         # binary image after processing.
         self.processed_image = None
-
-        self.load_thresholds(thresholds_file)
         self._source_type = source_type
-
-    def load_thresholds(self, thresholds_file):
-        """Load previously saved threshold configuration."""
-        if os.path.exists(thresholds_file):
-            with open(thresholds_file, 'rb') as config_file:
-                if sys.version_info[0] < 3:
-                    config = pickle.load(config_file)
-                else:
-                    config = pickle.load(config_file, encoding='latin1')
-
-                self.grad_x_threshold = config["grad_x_threshold"]
-                self.grad_y_threshold = config["grad_y_threshold"]
-                self.mag_threshold = config["mag_threshold"]
-                self.dir_threshold = config["dir_threshold"]
+        self.load_thresholds()
 
     def _build_gradients_for_source(self):
         self._sobelx = cv2.Sobel(self.source_channel, cv2.CV_64F,
@@ -140,6 +127,14 @@ class BinaryImage():
         elif self._source_type == SourceType.GRAY:
             self.source_channel = cv2.cvtColor(
                 incoming_image, cv2.COLOR_RGB2GRAY)
+        elif self._source_type == SourceType.Y_CHANNEL:
+            self.hls = cv2.cvtColor(incoming_image, cv2.COLOR_RGB2YUV)
+            y_channel = self.hls[:, :, 0]
+            self.source_channel = y_channel
+        elif self._source_type == SourceType.V_CHANNEL:
+            self.hls = cv2.cvtColor(incoming_image, cv2.COLOR_RGB2YUV)
+            v_channel = self.hls[:, :, 2]
+            self.source_channel = v_channel
         # Apply each of the thresholding functions
         self._build_gradients_for_source()
 
@@ -151,3 +146,50 @@ class BinaryImage():
              (self._grad_dir_binary == 1))] = 1
 
         return self.processed_image
+
+    def set_thresholds(self,
+                       grad_x_threshold,
+                       grad_y_threshold,
+                       mag_threshold,
+                       dir_threshold):
+        """Set threshold configuration."""
+        self.grad_x_threshold = grad_x_threshold
+        self.grad_y_threshold = grad_y_threshold
+        self.mag_threshold = mag_threshold
+        self.dir_threshold = dir_threshold
+
+    def save_thresholds(self):
+        """Save threshold configuration."""
+        config = {
+            "grad_x_threshold": self.grad_x_threshold,
+            "grad_y_threshold": self.grad_y_threshold,
+            "mag_threshold": self.mag_threshold,
+            "dir_threshold": self.dir_threshold,
+        }
+        pickle.dump(config, open(self._thresholds_file_name, "wb"))
+
+    def load_thresholds(self):
+        self._thresholds_file_name = "thresholds"
+        if self._source_type == SourceType.R_CHANNEL:
+            self._thresholds_file_name+="_r.p"
+        elif self._source_type == SourceType.S_CHANNEL:
+            self._thresholds_file_name += "_s.p"
+        elif self._source_type == SourceType.Y_CHANNEL:
+            self._thresholds_file_name += "_y.p"
+        elif self._source_type == SourceType.V_CHANNEL:
+            self._thresholds_file_name += "_v.p"
+        elif self._source_type == SourceType.GRAY_CHANNEL:
+            self._thresholds_file_name += "_g.p"
+        print(self._thresholds_file_name)
+        """Load previously saved threshold configuration."""
+        if os.path.exists(self._thresholds_file_name):
+            with open(self._thresholds_file_name, 'rb') as config_file:
+                if sys.version_info[0] < 3:
+                    config = pickle.load(config_file)
+                else:
+                    config = pickle.load(config_file, encoding='latin1')
+
+                self.grad_x_threshold = config["grad_x_threshold"]
+                self.grad_y_threshold = config["grad_y_threshold"]
+                self.mag_threshold = config["mag_threshold"]
+                self.dir_threshold = config["dir_threshold"]
