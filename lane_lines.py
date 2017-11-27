@@ -4,6 +4,9 @@ import pickle
 import sys
 
 import numpy as np
+import scipy
+import scipy.misc
+from scipy.ndimage.interpolation import zoom
 
 import cv2
 from binary_image import BinaryImage, SourceType
@@ -24,10 +27,12 @@ class LaneLines():
         self.img_width = 0
         self.img_height = 0
         self.img_size = (0, 0)
+        # Final image with lane lines superimposed.
+        self.processed_image = None
 
         # range along y that we search for lane pixels.
         # Use to ignore noise in the distance and the car bonnet
-        self._warped_y_range = (100, 690)
+        self._warped_y_range = (0, 700)
 
         # Image processing
         self._sobelx = None
@@ -347,6 +352,45 @@ class LaneLines():
         self.diagnostics_image = None
         self.histogram = None
 
+    def process_image_with_diagnostics(self, img):
+        """Process the image and append diagnostics to image."""
+        self.process_image(img)
+        size = np.shape(img)
+        size = (int(size[0] / 2), int(size[1] / 2))
+
+        rc = scipy.misc.imresize(self.binary_image_r_channel.source_channel, size)
+        rc = np.dstack((rc, rc, rc))
+        rcb = scipy.misc.imresize(
+            self.binary_image_r_channel.processed_image, size)
+        rcb = np.dstack((rcb, rcb, rcb))
+
+        sc = scipy.misc.imresize(self.binary_image_s_channel.source_channel, size)
+        sc = np.dstack((sc, sc, sc))
+        scb = scipy.misc.imresize(
+            self.binary_image_s_channel.processed_image, size)
+        scb = np.dstack((scb, scb, scb))
+
+        lfv = scipy.misc.imresize(self.lane_find_visualization, size)
+
+        sbw = scipy.misc.imresize(self.smooth_binary_warped * 255, size)
+        sbw = np.dstack((sbw, sbw, sbw))
+        cbw = scipy.misc.imresize(self.current_binary_warped * 255, size)
+        cbw = np.dstack((cbw, cbw, cbw))
+
+        di = scipy.misc.imresize(self.diagnostics_image, size)
+
+        diags_1_r1 = np.hstack((rc, sc))
+        diags_1_r2 = np.hstack((rcb, scb))
+        diags_1 = np.vstack((diags_1_r1, diags_1_r2))
+
+        diags_2_r1 = np.hstack((cbw, lfv))
+        diags_2_r2 = np.hstack((sbw, di))
+        diags_2 = np.vstack((diags_2_r1, diags_2_r2))
+
+        final_plus_diags = np.hstack((self.processed_image, diags_1, diags_2))
+        return final_plus_diags
+
+
     def process_image(self, img):
         """Process image and return image with Lane Line drawn."""
         self.diagnostics.frame_number += 1
@@ -402,9 +446,11 @@ class LaneLines():
                                   1, ::] = 0
         if (not self.right_lane_line.valid or
                 not self.left_lane_line.valid):
-            return self._find_line_full_search()
+            self.processed_image = self._find_line_full_search()
+            return self.processed_image
         else:
-            return self._find_lines_from_smooth()
+            self.processed_image = self._find_lines_from_smooth()
+            return self.processed_image
 
 
 class Diagnostics():
