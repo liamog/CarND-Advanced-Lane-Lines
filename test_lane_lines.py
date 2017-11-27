@@ -27,7 +27,7 @@ for file in files:
         ax2.imshow(lanes.diagnostics_image)
         ax2.set_title(file + ' s_channel Image - S', fontsize=10)
 
-        ax3.imshow(lanes.binary_warped, cmap='gray')
+        ax3.imshow(lanes.current_binary_warped, cmap='gray')
         ax3.set_title(file + ' Thresholded Grad. Dir.', fontsize=10)
 
         ax4.imshow(lanes.lane_find_visualization)
