@@ -1,7 +1,7 @@
 (dp0
 S'grad_x_threshold'
 p1
-(I29
+(I66
 I255
 tp2
 sS'grad_y_threshold'
@@ -17,6 +17,6 @@ tp6
 sS'dir_threshold'
 p7
 (F3.12413936106985
-F1.4660765716752369
+F3.12413936106985
 tp8
 s.
