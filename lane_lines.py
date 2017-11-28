@@ -30,10 +30,6 @@ class LaneLines():
         # Final image with lane lines superimposed.
         self.processed_image = None
 
-        # range along y that we search for lane pixels.
-        # Use to ignore noise in the distance and the car bonnet
-        self._warped_y_range = (0, 700)
-
         # Image processing
         self._sobelx = None
         self._sobely = None
@@ -45,8 +41,8 @@ class LaneLines():
         self.diagnostics_image = None
 
         # Detected Lanes
-        self.right_lane_line = Line((720, 1280))
-        self.left_lane_line = Line((720, 1280))
+        self.right_lane_line = Line(Config.WARPED_SHAPE)
+        self.left_lane_line = Line(Config.WARPED_SHAPE)
 
         # Counter for consecutive rejected lanes.
         self._rejected = 0
@@ -54,6 +50,7 @@ class LaneLines():
         self.camera = Camera(calibration_image_path)
         self.perspective = Perspective()
         self.diagnostics = Diagnostics()
+        
         # Initialize
         self.binary_image_y_channel = BinaryImage(
             SourceType.Y_CHANNEL)
@@ -89,8 +86,9 @@ class LaneLines():
         nwindows = Config.SEARCH_WINDOWS
         # Set height of windows
         window_height = np.int(
-            (self._warped_y_range[1] - self._warped_y_range[0]) / nwindows)
-        # Identify the x and y positions of all nonzero pixels in the image
+            (Config.WARPED_Y_RANGE[1] - Config.WARPED_Y_RANGE[0]) / nwindows)
+
+       # Identify the x and y positions of all nonzero pixels in the image
         nonzero = self.smooth_binary_warped.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
@@ -108,10 +106,10 @@ class LaneLines():
         # Step through the windows one by one
         for window in range(nwindows):
             # Identify window boundaries in x and y (and right and left)
-            win_y_low = self._warped_y_range[1] - \
+            win_y_low = Config.WARPED_Y_RANGE[1] - \
                 (window + 1) * window_height
-            win_y_high = self._warped_y_range[1] - \
-                window * window_height
+            win_y_high = Config.WARPED_Y_RANGE[1] - \
+            window * window_height
             win_xleft_low = leftx_current - margin
             win_xleft_high = leftx_current + margin
             win_xright_low = rightx_current - margin
@@ -387,9 +385,9 @@ class LaneLines():
             self.lane_find_visualization)
 
         # mask top of warped image to remove noise
-        self.smooth_binary_warped[0:self._warped_y_range[0]:1, ::] = 0
+        self.smooth_binary_warped[0:Config.WARPED_Y_RANGE[0]:1, ::] = 0
         # mask bottom of warped image to remove noise
-        self.smooth_binary_warped[self._warped_y_range[1]:
+        self.smooth_binary_warped[Config.WARPED_Y_RANGE[1]:
                                   self.smooth_binary_warped.shape[0] - 1:
                                   1, ::] = 0
         if (not self.right_lane_line.valid or

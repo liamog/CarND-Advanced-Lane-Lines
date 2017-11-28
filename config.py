@@ -1,5 +1,6 @@
 
 class Config():
+
     # Max number of frames to combine when searching
     # for lanes.
     SMOOTH_OVER_N_FRAMES = 2
@@ -20,6 +21,12 @@ class Config():
     # meters per pixel in x dimension
     # Calculated from the warped perspective transform used.
     XM_PER_PIX = 3.7 / (1080 - 230)  
+
+    # Y Range at to search for lines.
+    WARPED_Y_RANGE = (0, 700)
+
+    # Shape of the warped image.
+    WARPED_SHAPE = (720, 1280)
 
     # Minimum smooth polynomial cofficients samples before 
     # switching to fast detection.
