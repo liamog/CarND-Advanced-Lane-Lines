@@ -6,15 +6,19 @@ import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 
 from lane_lines import LaneLines
+import cv2
 
-files = glob.glob('project_video_imgs/*784.jpg')
+files = glob.glob('project_video_imgs/*1008.jpg')
 files.sort()
 lanes = LaneLines('camera_cal')
 count = 0
+
 for file in files:
     print(file)
     img = mpimg.imread(file)
     final = lanes.process_image(img)
+    cv2.imwrite("output.jpg", cv2.cvtColor(final, cv2.COLOR_BGR2RGB))
+    cv2.imwrite("input.jpg", cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     count += 1
     if (count % 1 == 0):
         print(count)
