@@ -1,12 +1,7 @@
 """Lane Line Module. c Liam O'Gorman."""
-import os.path
-import pickle
-import sys
-
 import numpy as np
 import scipy
 import scipy.misc
-from scipy.ndimage.interpolation import zoom
 
 import cv2
 from binary_image import BinaryImage, SourceType
@@ -22,7 +17,7 @@ class LaneLines():
     def __init__(self, calibration_image_path):
         """Initializer."""
         # Set to the image currently being processed
-        self._img = None
+        self.source_img = None
         self._images = []
         self.img_width = 0
         self.img_height = 0
@@ -95,10 +90,6 @@ class LaneLines():
         # Current positions to be updated for each window
         leftx_current = leftx_base
         rightx_current = rightx_base
-        # Set the width of the windows +/- margin
-        margin = 100
-        # Set minimum number of pixels found to recenter window
-        minpix = 50
         # Create empty lists to receive left and right lane pixel indices
         left_lane_inds = []
         right_lane_inds = []
@@ -110,10 +101,10 @@ class LaneLines():
                 (window + 1) * window_height
             win_y_high = Config.WARPED_Y_RANGE[1] - \
             window * window_height
-            win_xleft_low = leftx_current - margin
-            win_xleft_high = leftx_current + margin
-            win_xright_low = rightx_current - margin
-            win_xright_high = rightx_current + margin
+            win_xleft_low = leftx_current - Config.MARGIN
+            win_xleft_high = leftx_current + Config.MARGIN
+            win_xright_low = rightx_current - Config.MARGIN
+            win_xright_high = rightx_current + Config.MARGIN
             # Draw the windows on the visualization image
 
             cv2.rectangle(self.lane_find_visualization,
@@ -135,14 +126,14 @@ class LaneLines():
                                (nonzeroy < win_y_high) &
                                (nonzerox >= win_xright_low) &
                                (nonzerox < win_xright_high)).nonzero()[0]
+            # If you found > Config.MIN_PIXEL_PER_WINDOW pixels,
+            # recenter next window on their mean position and 
             # Append these indices to the lists
-            left_lane_inds.append(good_left_inds)
-            right_lane_inds.append(good_right_inds)
-            # If you found > minpix pixels,
-            # recenter next window on their mean position
-            if len(good_left_inds) > minpix:
+            if len(good_left_inds) > Config.MIN_PIXEL_PER_WINDOW:
+                left_lane_inds.append(good_left_inds)
                 leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
-            if len(good_right_inds) > minpix:
+            if len(good_right_inds) > Config.MIN_PIXEL_PER_WINDOW:
+                right_lane_inds.append(good_right_inds)
                 rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
 
         # Concatenate the arrays of indices
@@ -174,6 +165,7 @@ class LaneLines():
                 self.left_lane_line.add_current_fit_to_smooth()
 
         return self._visualize_lanes()
+
 
     def _find_lines_from_smooth(self):
         self.diagnostics.fast_fit = True
