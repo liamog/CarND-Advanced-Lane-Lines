@@ -73,7 +73,7 @@ class Line():
         return fitx[self.shape[0] - 1] * Config.XM_PER_PIX
 
     def _calc_curvature(self, fitx, fity):
-        y_eval = self.shape[0] - 100
+        y_eval = self.shape[0] ** Config.YM_PER_PIX
         fit_cr = np.polyfit(fity * Config.YM_PER_PIX,
                             fitx.astype(np.float) * Config.XM_PER_PIX, 2)
 

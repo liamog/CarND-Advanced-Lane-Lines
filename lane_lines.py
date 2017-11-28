@@ -212,8 +212,6 @@ class LaneLines():
         self.lane_find_visualization[self.right_lane_line.all_y,
                                      self.right_lane_line.all_x] = [0, 0, 255]
 
-        self.diagnostics.write_to_image(self.diagnostics_image)
-
         if self.right_lane_line.valid:
             right_curvature = self.right_lane_line.smooth_radius_of_curvature
             right_line_pos = self.right_lane_line.smooth_line_pos
@@ -231,7 +229,7 @@ class LaneLines():
         self.diagnostics.left_curvature = left_curvature
         self.diagnostics.right_curvature = right_curvature
 
-        # visualize the current fit curve.
+        # visualize the current fit curve.left_curvature
         self.left_lane_line.visualize_lane_current_fit(
             self.lane_find_visualization, color=[255, 255, 0])
         self.right_lane_line.visualize_lane_current_fit(
@@ -250,7 +248,7 @@ class LaneLines():
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1.5
-        font_color = (255, 255, 255)
+        font_white = (255, 255, 255)
         line_type = 3
         curvature = (right_curvature + left_curvature) / 2
         curve_text_pos = (20, 160)
@@ -261,7 +259,7 @@ class LaneLines():
                     curve_text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
                     line_type)
 
         center_of_lane = ((right_line_pos - left_line_pos) / 2) + left_line_pos
@@ -282,12 +280,14 @@ class LaneLines():
                     center_text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
                     line_type)
         cv2.line(lane_poly,
                  (int(self.img_width / 2), 0),
                  (int(self.img_width / 2), int(self.img_height)),
                  (255, 0, 0), 3)
+        self.diagnostics.write_to_image(self.diagnostics_image)
+
 
         # Combine the result with the original image
         return cv2.addWeighted(self.source_img, 1, lane_poly, 0.3, 0)
@@ -420,7 +420,8 @@ class Diagnostics():
         """Write diagnostic info to img."""
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 1.5
-        font_color = (255, 255, 255)
+        font_white = (255, 255, 255)
+        font_red = (255, 0, 0)
         line_type = 3
 
         line_height = 50
@@ -433,7 +434,7 @@ class Diagnostics():
                     text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
                     line_type)
 
         text_pos = (text_pos[0], text_pos[1] + line_height)
@@ -444,7 +445,7 @@ class Diagnostics():
                     text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
                     line_type)
 
         text_pos = (text_pos[0], text_pos[1] + line_height)
@@ -455,18 +456,22 @@ class Diagnostics():
                     text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
                     line_type)
 
         text_pos = (text_pos[0], text_pos[1] + line_height)
         text = 'Rejected={}'.format(
             self.rejected)
+        if self.rejected:
+            color = font_red
+        else:
+            color = font_white
         cv2.putText(img,
                     text,
                     text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    color,
                     line_type)
 
         text_pos = (text_pos[0], text_pos[1] + line_height)
@@ -477,7 +482,7 @@ class Diagnostics():
                     text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
                     line_type)
         text_pos = (text_pos[0], text_pos[1] + line_height)
         text = 'Fast Fit={}'.format(
@@ -487,5 +492,15 @@ class Diagnostics():
                     text_pos,
                     font,
                     font_scale,
-                    font_color,
+                    font_white,
+                    line_type)
+        text_pos = (text_pos[0], text_pos[1] + line_height)
+        text = 'Left Curvature={:3.4f}, right curvature{:3.4f}'.format(
+            self.left_curvature, self.right_curvature)
+        cv2.putText(img,
+                    text,
+                    text_pos,
+                    font,
+                    font_scale,
+                    font_white,
                     line_type)

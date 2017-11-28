@@ -18,7 +18,7 @@ class DrawFrame(wx.Frame):
     def __init__(self, *args, **kwargs):
         wx.Frame.__init__(self, *args, **kwargs)
         # Change as necessary
-        self.source_type = SourceType.Y_CHANNEL
+        self.source_type = SourceType.V_CHANNEL
 
         self._create_menu()
         self.create_widgets()
@@ -42,14 +42,21 @@ class DrawFrame(wx.Frame):
 
         item = menu.Append(wx.ID_ANY, "&Save Config", "Save the thresholds to config file.")
         self.Bind(wx.EVT_MENU, self.OnFileSave, item)
-        
+
+        item = menu.Append(wx.ID_ANY, "&Y Channel",
+                           "Select Y Channel.")
+        self.Bind(wx.EVT_MENU, self.OnSelectYChannel, item)
+
+        item = menu.Append(wx.ID_ANY, "&V Channel",
+                           "Select V Channel.")
+        self.Bind(wx.EVT_MENU, self.OnSelectVChannel, item)
+
+
         menu.Append(wx.ID_EXIT, "E&xit\tAlt-X", "Exit the app")
         self.Bind(wx.EVT_MENU, self.OnClose, id=wx.ID_EXIT)
 
         menuBar.Append(menu, "&File")
         self.SetMenuBar(menuBar)
-
-
 
     def create_widgets(self):
         binary_image = BinaryImage(self.source_type)
@@ -261,6 +268,30 @@ class DrawFrame(wx.Frame):
         image.SetData(nparray.tostring())
         return image
 
+    def OnSelectYChannel(self, evt):
+       self.source_type = SourceType.Y_CHANNEL
+       self.resetSlider()
+       self.refresh()
+
+    def OnSelectVChannel(self, evt):
+       self.source_type = SourceType.V_CHANNEL
+       self.resetSlider()
+       self.refresh()
+
+    def resetSlider(self):
+        binary_image = BinaryImage(self.source_type)
+        self.slider_grad_x_min.SetValue(binary_image.grad_x_threshold[0])
+        self.slider_grad_x_max.SetValue(binary_image.grad_x_threshold[1])
+        self.slider_grad_y_min.SetValue(binary_image.grad_y_threshold[0])
+        self.slider_grad_y_max.SetValue(binary_image.grad_y_threshold[1])
+        
+        self.slider_mag_min.SetValue(binary_image.mag_threshold[0])
+        self.slider_mag_max.SetValue(binary_image.mag_threshold[1])
+        # Convert to radians
+        self.slider_dir_min.SetValue(
+            math.degrees(binary_image.dir_threshold[0]))
+        self.slider_dir_max.SetValue(
+            math.degrees(binary_image.dir_threshold[0]))
 
 app = wx.App(False)
 F = DrawFrame(None, title="Image Thresholds tool", size=(1200, 900))
