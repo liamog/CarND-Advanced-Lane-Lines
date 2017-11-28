@@ -1,6 +1,9 @@
 
 class Config():
 
+    # Lane width in pixels after perspective transform. Make sure to keep in
+    # sync with transform.
+    LANE_WIDTH_IN_PIXELS = (980 - 320)
     # Max number of frames to combine when searching
     # for lanes.
     SMOOTH_OVER_N_FRAMES = 2
@@ -16,11 +19,11 @@ class Config():
     MAX_REJECTED = 5
 
     # meters per pixel in y dimension
-    YM_PER_PIX = 35 / 720  
+    YM_PER_PIX = 35 / 720
     
     # meters per pixel in x dimension
     # Calculated from the warped perspective transform used.
-    XM_PER_PIX = 3.7 / (1080 - 230)  
+    XM_PER_PIX = 3.7 / LANE_WIDTH_IN_PIXELS
 
     # Y Range at to search for lines.
     WARPED_Y_RANGE = (0, 700)
@@ -37,7 +40,8 @@ class Config():
 
     # Maximum standard deviation (in pixels) below which we
     # consider as parallel therefor a good lane detection. 
-    PROBABLE_LANE_WIDTH_STDDEV = 50
+    PROBABLE_LANE_WIDTH_STDDEV = 40
     
     # Range of average lane widths to accept as a probable lane
-    PROBABLE_LANE_AVERAGE_WIDTH_RANGE = (750, 950)
+    PROBABLE_LANE_AVERAGE_WIDTH_RANGE = (
+        LANE_WIDTH_IN_PIXELS - 50, LANE_WIDTH_IN_PIXELS + 50)

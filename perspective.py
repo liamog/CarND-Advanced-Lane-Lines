@@ -15,10 +15,11 @@ class Perspective():
         self._init_perspective_transform_matrices()
 
     def _init_perspective_transform_matrices(self):
-        src = np.float32([[230.0, 700.0], [531.0, 495.0],
-                          [762.5, 495.0], [1080.0, 700.0]])
-        dst = np.float32([[230.0, 700.0], [230.0, 495.0], [
-            1080.0, 495.0], [1080.0, 700.0]])
+        src = np.float32([[251.0, 688.0], [540.0, 489.0],
+                        [747.0, 489.0], [1055.0, 688.0]])
+
+        dst = np.float32([[320.0, 688.0], [320.0, 489.0],
+                        [980.0, 489.0], [980.0, 688.0]])
         self._perspective_transform = cv2.getPerspectiveTransform(src, dst)
         self._perspective_inverse = cv2.getPerspectiveTransform(dst, src)
 

@@ -280,13 +280,13 @@ class LaneLines():
                     font_scale,
                     font_white,
                     line_type)
+        lane_poly_shape = np.shape(lane_poly)
         cv2.line(lane_poly,
-                 (int(self.img_width / 2), 0),
-                 (int(self.img_width / 2), int(self.img_height)),
+                 (int(lane_poly_shape[1] / 2), 0),
+                 (int(lane_poly_shape[1] / 2), int(lane_poly_shape[0])),
                  (255, 0, 0), 3)
         self.diagnostics.write_to_image(self.diagnostics_image)
-
-
+        
         # Combine the result with the original image
         return cv2.addWeighted(self.source_img, 1, lane_poly, 0.3, 0)
 
