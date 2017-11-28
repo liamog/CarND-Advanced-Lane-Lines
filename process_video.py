@@ -20,11 +20,9 @@ def write_image(name, img):
     else:
         cv2.imwrite(name, img)
     return name
-lanes = LaneLines('camera_cal')
-count = 0
 
 diagnostics_enabled = True
-regular_enabled = False
+regular_enabled = True
 # input_base = "harder_challenge_video"
 # input_base = "challenge_video"
 input_base = "project_video"
@@ -35,11 +33,15 @@ output_diag_filename = input_base + "_with_diagnostics.mp4"
 
 
 if regular_enabled:
+    lanes = LaneLines('camera_cal')
+    count = 0
     clip1 = VideoFileClip(input_filename)
     clip = clip1.fl_image(lanes.process_image)
     clip.write_videofile(output_filename, audio=False)
 
 if diagnostics_enabled:
+    lanes = LaneLines('camera_cal')
+    count = 0
     clip1 = VideoFileClip(input_filename)
     clip = clip1.fl_image(lanes.process_image_with_diagnostics)
     clip.write_videofile(output_diag_filename, audio=False)
