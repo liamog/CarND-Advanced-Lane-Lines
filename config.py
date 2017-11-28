@@ -2,7 +2,7 @@
 class Config():
     # Max number of frames to combine when searching
     # for lanes.
-    SMOOTH_OVER_N_FRAMES = 3
+    SMOOTH_OVER_N_FRAMES = 2
     
     # Number of windows for the sliding window search
     SEARCH_WINDOWS = 9
@@ -26,11 +26,11 @@ class Config():
     MIN_SMOOTH_SAMPLES = 3
     
     # Maximum number of fit samples to smooth over.
-    MAX_SMOOTH_SAMPLES = 8
+    MAX_SMOOTH_SAMPLES = 5
 
     # Maximum standard deviation (in pixels) below which we
     # consider as parallel therefor a good lane detection. 
-    PROBABLE_LANE_WIDTH_STDDEV = 25
+    PROBABLE_LANE_WIDTH_STDDEV = 50
     
     # Range of average lane widths to accept as a probable lane
     PROBABLE_LANE_AVERAGE_WIDTH_RANGE = (750, 950)
